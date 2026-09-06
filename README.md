@@ -95,40 +95,49 @@ bermasalah, periksa lebih dulu:
 
 ### Mengatasi error izin Google Drive
 
-Kalau muncul pesan soal Google Drive menolak akses (HTTP 401/403) saat
-Download PDF, Unggah Arsip, atau Pratinjau — ini terjadi kalau Web App
-sudah pernah di-deploy & diotorisasi **sebelum** fitur Drive (Tahap 3)
-ditambahkan, jadi izin yang tersimpan masih yang lama. Cara memperbaiki,
-cukup sekali saja:
+Kalau muncul pesan soal Google Drive menolak akses (HTTP 401/403, mis.
+*"insufficient authentication scopes"* atau *"permission to call
+UrlFetchApp"*) saat Download PDF, Unggah Arsip, atau Pratinjau — ini
+terjadi kalau Web App sudah pernah di-deploy & diotorisasi **sebelum**
+fitur Drive (Tahap 3) ditambahkan, jadi izin yang tersimpan masih yang
+lama. Cara memperbaiki:
 
-1. Pastikan `appsscript.json` sudah disalin sesuai langkah 2 di atas.
+1. Pastikan `appsscript.json` sudah disalin **persis** sesuai langkah 2 di
+   atas (isinya harus punya 3 scope: `spreadsheets`, `drive`, dan
+   `script.external_request`).
 2. Di editor Apps Script, pilih fungsi **`authorizeDriveAccess`** dari
    dropdown "Select function" di toolbar, lalu klik **Run** (ikon ▷).
-3. Google akan menampilkan layar persetujuan izin (mungkin perlu klik
-   "Advanced" > "Go to (nama project) (unsafe)" karena project belum
-   diverifikasi Google — ini wajar untuk script pribadi/internal). Klik
-   **Allow**.
-4. Cek **Execution log** (ikon jam di sidebar editor) — kalau muncul
-   "Otorisasi berhasil..." beserta alamat email, berarti sudah beres.
-   Tidak perlu membuat deployment baru; Web App yang sudah ada otomatis
-   ikut memakai izin yang baru disetujui (keduanya jalan sebagai akun yang
-   sama).
+   Fungsi ini sekarang benar-benar mendiagnosis (bukan cuma mencoba lalu
+   melapor gagal) — buka **Execution log** (ikon jam di sidebar editor)
+   setelahnya, isinya akan menuliskan SATU PER SATU scope apa yang
+   benar-benar melekat pada token otorisasi Anda saat ini, dan
+   menyebutkan persis scope mana yang hilang kalau memang ada yang kurang.
+3. **Kalau lognya bilang scope masih kurang padahal `appsscript.json`
+   sudah benar** — ini gejala umum Apps Script: otorisasi yang sudah ada
+   TIDAK otomatis diperbarui saat scope baru ditambahkan ke manifest;
+   "izin lama" dianggap tetap berlaku padahal sudah tidak cukup. Perbaikan
+   di titik ini **wajib manual**, menjalankan `authorizeDriveAccess()`
+   berkali-kali TIDAK akan membantu tanpa langkah ini dulu:
+   1. Buka **[myaccount.google.com/permissions](https://myaccount.google.com/permissions)**
+      (harus login dengan akun yang sama yang men-deploy Web App ini).
+   2. Cari nama project Apps Script ini (biasanya sama dengan nama
+      Spreadsheet Anda, atau "Untitled project" kalau belum diganti).
+   3. Klik masuk, lalu **"Remove Access"** / **"Hapus Akses"**.
+   4. Kembali ke editor Apps Script, jalankan `authorizeDriveAccess()`
+      lagi — kali ini Google **wajib** menampilkan layar persetujuan yang
+      benar-benar baru (mungkin perlu klik "Advanced" > "Go to (nama
+      project) (unsafe)" karena project belum diverifikasi Google — wajar
+      untuk script pribadi/internal), mencakup SEMUA scope yang sekarang
+      ada di `appsscript.json`.
+4. Ulangi Langkah 2 untuk memastikan Execution log-nya sekarang
+   menunjukkan "SEMUA BERHASIL, otorisasi lengkap" sebelum mencoba
+   Unggah Arsip/Pratinjau lagi.
 
-Kalau setelah langkah di atas errornya berubah jadi soal folder (HTTP 404,
+Kalau setelah semua ini errornya berubah jadi soal folder (HTTP 404,
 bukan 401/403) — berarti otorisasinya sudah benar, tapi `ARSIP_FOLDER_ID`
 di `appscript/Code.gs` berisi ID/link yang salah, atau foldernya tidak
 dimiliki/belum di-share ke akun yang men-deploy Web App ini. Kosongkan
 `ARSIP_FOLDER_ID` untuk memakai folder otomatis sebagai jalan pintas.
-
-**Kalau errornya persis *"You do not have permission to call
-UrlFetchApp.fetch"*** — `appsscript.json` di project ini sempat kurang satu
-scope (`script.external_request`, dibutuhkan `UrlFetchApp` itu sendiri
-untuk membuat request eksternal apa pun, terpisah dari scope `drive` untuk
-Google mengizinkan isi requestnya) dan sudah diperbaiki. **Perlu diulang:**
-salin ulang `appsscript.json` yang terbaru (langkah 2 di atas), lalu
-jalankan `authorizeDriveAccess()` sekali lagi — scope baru hanya berlaku
-setelah otorisasi diulang, sekalipun sebelumnya sudah pernah disetujui
-untuk scope yang lain.
 
 **Catatan teknis:** sejak update ini, semua panggilan Drive lewat REST API
 v3 langsung via `UrlFetchApp` (bukan layanan `DriveApp` bawaan Apps

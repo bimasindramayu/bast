@@ -1106,27 +1106,110 @@ function getArsipFileContent(params) {
 }
 
 /**
- * Jalankan fungsi ini SATU KALI secara manual dari editor Apps Script
- * (dropdown "Select function" di toolbar editor > pilih authorizeDriveAccess
- * > klik Run) setiap kali menambahkan kode yang butuh izin baru — persis
- * kasus Tahap 3 ini, yang menambahkan akses Drive setelah Web App sudah
- * pernah di-deploy & diotorisasi tanpa akses itu.
+ * Jalankan fungsi ini dari editor Apps Script (dropdown "Select function"
+ * di toolbar > pilih authorizeDriveAccess > klik Run ▷) setiap kali
+ * menambahkan kode yang butuh izin baru, ATAU kapan pun Drive/Spreadsheet
+ * bermasalah dan Anda butuh kepastian apa yang sebenarnya terjadi.
  *
- * Menguji lewat panggilan REST langsung (bukan DriveApp) supaya jalur yang
- * diuji PERSIS SAMA dengan yang dipakai uploadArsip()/getArsipFileContent()
- * — kalau ini berhasil, keduanya dijamin juga berhasil.
+ * BUKAN sekadar mencoba lalu melapor gagal/berhasil — fungsi ini bertanya
+ * LANGSUNG ke Google lewat endpoint tokeninfo, scope APA SAJA yang
+ * benar-benar melekat pada token otorisasi saat ini, dan menuliskannya
+ * satu per satu ke Execution log (ikon jam di sidebar editor). Ini bukti
+ * pasti — bukan tebakan dari gejala error — jadi kalau Drive masih gagal
+ * setelah ini, log-nya akan menunjukkan PERSIS scope mana yang hilang.
+ *
+ * Kalau scope yang dibutuhkan ternyata TIDAK ADA meskipun sudah ada di
+ * appsscript.json: ini gejala umum Apps Script tidak selalu menampilkan
+ * ulang layar persetujuan saat scope BARU ditambahkan ke manifest yang
+ * projectnya sudah pernah diotorisasi sebelumnya — otorisasi lama
+ * "dianggap cukup" padahal sudah tidak. Perbaikannya WAJIB manual:
+ *   1. Buka https://myaccount.google.com/permissions
+ *   2. Cari nama project Apps Script ini (biasanya sama dengan nama
+ *      Spreadsheet, atau "Untitled project" kalau belum diganti namanya).
+ *   3. Klik masuk, lalu "Remove Access" / "Hapus Akses".
+ *   4. Kembali ke editor Apps Script, jalankan authorizeDriveAccess() lagi
+ *      — kali ini Google WAJIB menampilkan layar persetujuan yang benar-
+ *      benar baru, mencakup SEMUA scope di appsscript.json saat ini.
  *
  * Menjalankan fungsi APAPUN lewat tombol Run di editor (bukan lewat Web
- * App) akan memicu layar persetujuan Google yang mencakup SEMUA scope di
- * appsscript.json. Setelah disetujui sekali, Web App yang sudah ter-deploy
- * otomatis ikut mendapat izin itu (keduanya jalan sebagai akun yang sama).
- * Tidak perlu membuat deployment baru.
+ * App) akan memicu layar persetujuan itu. Setelah disetujui, Web App yang
+ * sudah ter-deploy otomatis ikut memakai izin yang sama (keduanya jalan
+ * sebagai akun yang sama) — tidak perlu membuat deployment baru.
  */
 function authorizeDriveAccess() {
-  const info = driveApiRequest_('https://www.googleapis.com/drive/v3/about?fields=user', { method: 'get' });
-  const email = info.user && info.user.emailAddress;
-  const sheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
-  Logger.log('Otorisasi berhasil. Drive: ' + email + ', Spreadsheet: "' + sheetName + '".');
+  const token = ScriptApp.getOAuthToken();
+
+  Logger.log('=== DIAGNOSTIK OTORISASI — mulai ===');
+
+  // --- Langkah 1: tanya LANGSUNG ke Google scope apa yang benar-benar
+  // melekat pada token ini SAAT INI, bukan menebak dari appsscript.json. ---
+  const tokenInfoRes = UrlFetchApp.fetch(
+    'https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=' + encodeURIComponent(token),
+    { muteHttpExceptions: true }
+  );
+  const tokenInfoCode = tokenInfoRes.getResponseCode();
+  const tokenInfoText = tokenInfoRes.getContentText();
+
+  Logger.log('--- Langkah 1: Cek scope yang benar-benar melekat pada token ---');
+  Logger.log('HTTP status: ' + tokenInfoCode);
+
+  let hasDrive = false, hasExternalRequest = false, hasSpreadsheets = false;
+  if (tokenInfoCode === 200) {
+    const info = JSON.parse(tokenInfoText);
+    const scopes = (info.scope || '').split(' ').filter(function (s) { return s; });
+    Logger.log('Token berlaku untuk akun: ' + (info.email || '(tidak diketahui)'));
+    Logger.log('Jumlah scope yang melekat sekarang: ' + scopes.length);
+    scopes.forEach(function (s) { Logger.log('  - ' + s); });
+
+    hasDrive = scopes.indexOf('https://www.googleapis.com/auth/drive') !== -1;
+    hasExternalRequest = scopes.indexOf('https://www.googleapis.com/auth/script.external_request') !== -1;
+    hasSpreadsheets = scopes.some(function (s) { return s.indexOf('spreadsheets') !== -1; });
+
+    Logger.log('--- Kesimpulan Langkah 1 ---');
+    Logger.log('Scope drive ada? ' + (hasDrive ? 'YA' : 'TIDAK ADA <-- PENYEBAB error 403 "insufficient authentication scopes" kalau ini yang hilang'));
+    Logger.log('Scope script.external_request ada? ' + (hasExternalRequest ? 'YA' : 'TIDAK ADA <-- PENYEBAB error "permission to call UrlFetchApp" kalau ini yang hilang'));
+    Logger.log('Scope spreadsheets ada? ' + (hasSpreadsheets ? 'YA' : 'TIDAK ADA'));
+  } else {
+    Logger.log('Gagal memeriksa token (respons: ' + tokenInfoText + '). Lanjut ke Langkah 2 saja.');
+  }
+
+  if (tokenInfoCode === 200 && (!hasDrive || !hasExternalRequest)) {
+    Logger.log('=== DIAGNOSTIK SELESAI — DITEMUKAN MASALAH: scope kurang lengkap ===');
+    throw new Error(
+      'Token otorisasi SAAT INI tidak memiliki scope yang dibutuhkan (rincian lengkap ada di Execution ' +
+      'log — ikon jam di sidebar editor). Ini biasanya berarti otorisasi LAMA (dari sebelum ' +
+      'appsscript.json ditambah scope baru) masih dipakai, dan Apps Script tidak otomatis meminta ulang. ' +
+      'Perbaikan WAJIB manual: buka https://myaccount.google.com/permissions, cari project Apps Script ' +
+      'ini, klik "Remove Access", lalu jalankan authorizeDriveAccess() lagi dari awal — itu akan memaksa ' +
+      'layar persetujuan yang benar-benar baru.'
+    );
+  }
+
+  // --- Langkah 2: tes panggilan sesungguhnya, satu per satu, supaya kalau
+  // ada yang gagal di sini padahal Langkah 1 bilang scope-nya lengkap,
+  // kita tahu masalahnya BUKAN scope — melainkan sesuatu yang lain
+  // (folder tidak ditemukan, dsb.) dan pesan errornya akan bilang persis apa. ---
+  Logger.log('--- Langkah 2: Tes panggilan Drive API sesungguhnya ---');
+  try {
+    const info = driveApiRequest_('https://www.googleapis.com/drive/v3/about?fields=user', { method: 'get' });
+    Logger.log('BERHASIL. Masuk Drive sebagai: ' + (info.user && info.user.emailAddress));
+  } catch (err) {
+    Logger.log('GAGAL: ' + err.message);
+    Logger.log('=== DIAGNOSTIK SELESAI — GAGAL di Langkah 2 ===');
+    throw err;
+  }
+
+  Logger.log('--- Langkah 3: Tes akses Spreadsheet ---');
+  try {
+    const sheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
+    Logger.log('BERHASIL. Nama Spreadsheet: "' + sheetName + '"');
+  } catch (err) {
+    Logger.log('GAGAL: ' + err.message);
+    Logger.log('=== DIAGNOSTIK SELESAI — GAGAL di Langkah 3 ===');
+    throw err;
+  }
+
+  Logger.log('=== DIAGNOSTIK SELESAI — SEMUA BERHASIL, otorisasi lengkap ===');
 }
 
 /**
