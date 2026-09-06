@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Berita Acara Serah Terima Sarana Administrasi NR</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="document-previewer.css" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar__brand">
+      <div class="sidebar__logo">
+        <img src="assets/logo-kemenag.png" alt="Logo Kemenag" onerror="this.style.display='none'" />
+      </div>
+      <div>
+        <div class="sidebar__title">BA Sarana NR</div>
+        <div class="sidebar__subtitle">Bimas Islam &middot; Kemenag Indramayu</div>
+      </div>
+    </div>
+
+    <ul class="nav-list" id="nav-list">
+      <li>
+        <button class="nav-link is-active" data-page="dashboard" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="12" width="8" height="9" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/></svg>
+          <span class="nav-label">Dashboard</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-link" data-page="buat-ba" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-5-6Z"/><path d="M14 3v6h5"/><path d="M9 16h4M12 13.5v5"/></svg>
+          <span class="nav-label">Buat BA</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-link" data-page="riwayat" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
+          <span class="nav-label">Riwayat</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-link" data-page="pegawai" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="8.5" r="2.6"/><path d="M15.5 14.2c2.6.4 4.5 2.7 4.5 5.8"/></svg>
+          <span class="nav-label">Pegawai</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-link" data-page="pengaturan" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.7 7.7 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.7 7.7 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9c.5.44 1.08.77 1.7 1L11 21h4l.4-2.9c.62-.23 1.2-.56 1.7-1l2.3.9 2-3.4-2-1.5Z"/></svg>
+          <span class="nav-label">Pengaturan</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="sidebar__footer">SIMKAH Tools &middot; Internal</div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main-wrapper">
+
+    <header class="topbar">
+      <div class="topbar-wrap">
+        <div class="topbar__title" id="page-title">Dashboard</div>
+        <div class="topbar__date" id="today-date"></div>
+      </div>
+      <div class="topbar__actions">
+        <button class="btn btn--secondary" id="btn-sync" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          <span>Sinkronisasi</span>
+        </button>
+      </div>
+    </header>
+    <hr class="rule-double" />
+
+    <main>
+
+      <!-- ===================== DASHBOARD ===================== -->
+      <section class="page is-active" data-page="dashboard" id="page-dashboard">
+        <div class="page-header">
+          <h2>Dashboard</h2>
+          <p>Ringkasan data Berita Acara Serah Terima Sarana Administrasi NR, diambil langsung dari Spreadsheet.</p>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <div class="stat-tile__label">Total Berita Acara</div>
+            <div class="stat-tile__value is-loading" id="stat-total-ba">&ndash;</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile__label">Total Pegawai</div>
+            <div class="stat-tile__value is-loading" id="stat-total-pegawai">&ndash;</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile__label">BA Bulan Ini</div>
+            <div class="stat-tile__value is-loading" id="stat-ba-bulan-ini">&ndash;</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile__label">Nomor Terakhir</div>
+            <div class="stat-tile__value is-loading mono" id="stat-nomor-terakhir">&ndash;</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Status Sistem</div>
+          </div>
+          <div id="dashboard-status" style="font-size: var(--fs-sm); color: var(--color-text-muted);">Memuat status...</div>
+        </div>
+      </section>
+
+      <!-- ===================== BUAT BA ===================== -->
+      <section class="page" data-page="buat-ba" id="page-buat-ba">
+        <div class="page-header">
+          <h2>Buat Berita Acara</h2>
+          <p>Pihak Pertama diambil dari Pegawai berkategori Bimas Islam, Pihak Kedua dari Pegawai berkategori KUA.</p>
+        </div>
+
+        <form id="form-buat-ba">
+          <div class="card">
+            <div class="card__header"><div class="card__title">Informasi Dokumen</div></div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="ba-tanggal">Tanggal Pelaksanaan</label>
+                <input type="date" id="ba-tanggal" required />
+              </div>
+              <div class="field">
+                <label for="ba-bulan-surat">Bulan Surat</label>
+                <select id="ba-bulan-surat" required></select>
+                <div class="field-hint">Dipakai untuk angka romawi pada Nomor Surat — otomatis mengikuti Tanggal, bisa diubah manual.</div>
+              </div>
+            </div>
+            <div class="readonly-summary" id="ba-tanggal-summary">Pada hari ini –, tanggal – bulan – tahun –</div>
+
+            <div class="form-grid" style="margin-top: var(--sp-4);">
+              <div class="field field--mono">
+                <label for="ba-nomor-urut">Nomor Urut</label>
+                <input type="number" id="ba-nomor-urut" min="1" required />
+              </div>
+              <div class="field field--mono">
+                <label>Nomor Surat (pratinjau)</label>
+                <input type="text" id="ba-nomor-surat-preview" readonly />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Pihak Pertama <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf Bimas Islam</span></div></div>
+            <div class="field">
+              <label for="ba-pihak-satu">Pilih Pegawai</label>
+              <select id="ba-pihak-satu" required><option value="">— Pilih —</option></select>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>Nama</label><input type="text" id="ba-satu-nama" readonly /></div>
+              <div class="field field--mono"><label>NIP</label><input type="text" id="ba-satu-nip" readonly /></div>
+              <div class="field"><label>Jabatan</label><input type="text" id="ba-satu-jabatan" readonly /></div>
+              <div class="field"><label>Alamat</label><input type="text" id="ba-satu-alamat" readonly /></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Pihak Kedua <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf KUA</span></div></div>
+            <div class="field">
+              <label for="ba-pihak-kedua">Pilih Pegawai</label>
+              <select id="ba-pihak-kedua" required><option value="">— Pilih —</option></select>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>Nama</label><input type="text" id="ba-dua-nama" readonly /></div>
+              <div class="field field--mono"><label>NIP</label><input type="text" id="ba-dua-nip" readonly /></div>
+              <div class="field"><label>Jabatan</label><input type="text" id="ba-dua-jabatan" readonly /></div>
+              <div class="field"><label>Alamat</label><input type="text" id="ba-dua-alamat" readonly /></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Data Sarana</div></div>
+            <div class="form-grid">
+              <div class="field field--mono">
+                <label for="ba-porporasi-awal">Nomor Porporasi Awal</label>
+                <input type="text" inputmode="numeric" id="ba-porporasi-awal" required />
+              </div>
+              <div class="field field--mono">
+                <label for="ba-porporasi-akhir">Nomor Porporasi Akhir</label>
+                <input type="text" inputmode="numeric" id="ba-porporasi-akhir" required />
+              </div>
+            </div>
+            <div id="ba-porporasi-check-result"></div>
+
+            <label style="display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); margin: var(--sp-3) 0;">
+              <input type="checkbox" id="ba-auto-hitung" checked style="width:auto;" />
+              Hitung Banyaknya Buku NA otomatis dari rentang porporasi
+            </label>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="ba-na-buku">Banyaknya Buku NA</label>
+                <input type="number" min="0" id="ba-na-buku" readonly />
+              </div>
+              <div class="field">
+                <label for="ba-n">Banyaknya N</label>
+                <input type="number" min="0" id="ba-n" />
+              </div>
+              <div class="field">
+                <label for="ba-nb">Banyaknya NB</label>
+                <input type="number" min="0" id="ba-nb" />
+              </div>
+              <div class="field">
+                <label for="ba-no-seri">No. Seri <span style="font-weight:400; color:var(--color-text-faint);">(opsional, kode batch internal)</span></label>
+                <input type="text" id="ba-no-seri" placeholder="mis. PS, JB" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Mengetahui</div></div>
+            <div class="form-grid">
+              <div class="field"><label>Kepala Seksi Bimas</label><input type="text" id="ba-kasi-nama-display" readonly /></div>
+              <div class="field field--mono"><label>NIP</label><input type="text" id="ba-kasi-nip-display" readonly /></div>
+            </div>
+            <div class="field-hint">Diambil dari halaman Pengaturan. Untuk mengganti, ubah di sana.</div>
+          </div>
+
+          <div style="display:flex; gap: var(--sp-2);">
+            <button type="submit" class="btn btn--primary" id="btn-simpan-ba">Simpan Berita Acara</button>
+            <button type="button" class="btn btn--secondary" id="btn-reset-ba">Bersihkan Form</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ===================== RIWAYAT ===================== -->
+      <section class="page" data-page="riwayat" id="page-riwayat">
+        <div class="page-header">
+          <h2>Riwayat</h2>
+          <p>Seluruh Berita Acara tersimpan di Master. Buka salah satu untuk melihat detail, mengunduh PDF, atau mengunggah arsip hasil scan yang sudah ditandatangani.</p>
+        </div>
+
+        <div class="card">
+          <div class="table-toolbar">
+            <div class="search-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="riwayat-search" placeholder="Cari nomor, nama pihak..." />
+            </div>
+            <div style="display:flex; gap: var(--sp-2);">
+              <select id="riwayat-filter-tahun" style="width:auto;"><option value="">Semua Tahun</option></select>
+              <select id="riwayat-filter-bulan" style="width:auto;">
+                <option value="">Semua Bulan</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead id="riwayat-thead">
+                <tr>
+                  <th style="width:70px;" data-sort-key="nomorUrut">Nomor</th>
+                  <th style="width:110px;" data-sort-key="tanggal">Tanggal</th>
+                  <th data-sort-key="pihakSatuNama">Pihak Pertama</th>
+                  <th data-sort-key="pihakKeduaNama">Pihak Kedua</th>
+                  <th data-sort-key="porporasi">Porporasi</th>
+                  <th style="width:80px;">Arsip</th>
+                  <th style="width:130px;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="riwayat-tbody">
+                <tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-toolbar" style="margin-top: var(--sp-3); margin-bottom:0;">
+            <div id="riwayat-pagination-info" style="font-size: var(--fs-xs); color: var(--color-text-muted);"></div>
+            <div style="display:flex; gap: var(--sp-2);">
+              <button class="btn btn--secondary btn--sm" id="btn-riwayat-prev" type="button">&larr; Sebelumnya</button>
+              <button class="btn btn--secondary btn--sm" id="btn-riwayat-next" type="button">Berikutnya &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== PEGAWAI ===================== -->
+      <section class="page" data-page="pegawai" id="page-pegawai">
+        <div class="page-header">
+          <h2>Pegawai</h2>
+          <p>Data pegawai ini otomatis terisi dari histori Pihak Pertama &amp; Pihak Kedua di sheet Master, dan menjadi sumber dropdown saat membuat BA baru.</p>
+        </div>
+
+        <div class="card">
+          <div class="table-toolbar">
+            <div class="search-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="pegawai-search" placeholder="Cari nama, NIP, atau jabatan..." />
+            </div>
+            <button class="btn btn--primary" id="btn-tambah-pegawai" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah Pegawai
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead id="pegawai-thead">
+                <tr>
+                  <th style="width:170px;" data-sort-key="nip">NIP</th>
+                  <th data-sort-key="nama">Nama</th>
+                  <th data-sort-key="kategori">Unit Kerja</th>
+                  <th data-sort-key="jabatan">Jabatan</th>
+                  <th data-sort-key="alamat">Alamat</th>
+                  <th style="width:90px;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="pegawai-tbody">
+                <tr><td colspan="6"><div class="loading-row"><span class="spinner"></span> Memuat data pegawai...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== PENGATURAN ===================== -->
+      <section class="page" data-page="pengaturan" id="page-pengaturan">
+        <div class="page-header">
+          <h2>Pengaturan</h2>
+          <p>Nilai-nilai ini dipakai sebagai default saat membuat Berita Acara baru, dan tersimpan di sheet SETTING.</p>
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Pengaturan Umum</div></div>
+          <form id="form-pengaturan">
+            <div class="form-grid">
+              <div class="field">
+                <label for="set-kasi-nama">Nama Kepala Seksi (Kasi)</label>
+                <input type="text" id="set-kasi-nama" name="KASI_NAMA" />
+              </div>
+              <div class="field field--mono">
+                <label for="set-kasi-nip">NIP Kasi</label>
+                <input type="text" id="set-kasi-nip" name="KASI_NIP" />
+              </div>
+              <div class="field">
+                <label for="set-nomor-awal">Nomor Awal Surat</label>
+                <input type="text" id="set-nomor-awal" name="NOMOR_AWAL_SURAT" />
+                <div class="field-hint">Dipakai saat penomoran otomatis diaktifkan di halaman Buat BA (tahap berikutnya).</div>
+              </div>
+              <div class="field field--mono">
+                <label for="set-kode-kantor">Kode Kantor</label>
+                <input type="text" id="set-kode-kantor" name="KODE_KANTOR" />
+                <div class="field-hint">Contoh: Kk.10.12</div>
+              </div>
+              <div class="field field--mono">
+                <label for="set-kode-klasifikasi">Kode Klasifikasi Arsip</label>
+                <input type="text" id="set-kode-klasifikasi" name="KODE_KLASIFIKASI" />
+                <div class="field-hint">Contoh: PW.01</div>
+              </div>
+              <div class="field">
+                <label for="set-tahun-aktif">Tahun Aktif</label>
+                <input type="text" id="set-tahun-aktif" name="TAHUN_AKTIF" />
+              </div>
+              <div class="field field--full field--mono">
+                <label for="set-nomor-format">Format Nomor Surat</label>
+                <input type="text" id="set-nomor-format" name="NOMOR_FORMAT_TEMPLATE" />
+                <div class="field-hint">Placeholder yang tersedia: {NOMOR}, {KODE_KANTOR}, {BULAN_ROMAWI}, {KODE_KLASIFIKASI}, {BULAN_ANGKA}, {TAHUN}</div>
+              </div>
+            </div>
+            <p class="field-hint" style="margin-bottom: var(--sp-3);">ID Spreadsheet dan folder arsip Google Drive diatur langsung di <code>appscript/Code.gs</code> (bagian KONFIGURASI paling atas), bukan di sini.</p>
+            <button type="submit" class="btn btn--primary" id="btn-simpan-pengaturan">Simpan Pengaturan</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Informasi Sistem</div></div>
+          <div class="form-grid" style="font-size: var(--fs-sm);">
+            <div class="field"><label>Nama Aplikasi</label><div id="info-app-name" class="mono">&ndash;</div></div>
+            <div class="field"><label>Versi Database</label><div id="info-db-version" class="mono">&ndash;</div></div>
+            <div class="field"><label>Dibuat Pada</label><div id="info-created-at" class="mono">&ndash;</div></div>
+            <div class="field"><label>Nomor Terakhir Tersimpan</label><div id="info-last-number" class="mono">&ndash;</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Migrasi &amp; Sinkronisasi Data</div></div>
+          <p style="color: var(--color-text-muted); font-size: var(--fs-sm); margin-bottom: var(--sp-3); max-width: 640px;">
+            Membaca ulang seluruh sheet Master, menambahkan pegawai baru yang belum tercatat di sheet PEGAWAI,
+            memperbarui data pegawai yang sudah ada (nama/jabatan/alamat mengikuti kemunculan terbaru di Master),
+            dan mengoreksi Nomor Terakhir. Aman dijalankan berulang kali — tidak membuat data ganda maupun
+            menghapus data yang sudah ada.
+          </p>
+          <button class="btn btn--secondary" id="btn-run-migration" type="button">Jalankan Migrasi / Sinkronisasi</button>
+          <div id="migration-result" style="margin-top: var(--sp-4); display:none;"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ===================== MODAL: TAMBAH/EDIT PEGAWAI ===================== -->
+<div class="modal-overlay" id="modal-pegawai">
+  <div class="modal">
+    <div class="modal__header">
+      <h3 id="modal-pegawai-title">Tambah Pegawai</h3>
+      <button class="icon-btn" type="button" data-close-modal="modal-pegawai" aria-label="Tutup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-pegawai">
+      <div class="modal__body">
+        <input type="hidden" id="pegawai-original-nip" />
+        <div class="field">
+          <label for="pegawai-nip">NIP</label>
+          <input type="text" id="pegawai-nip" required minlength="18" maxlength="25" />
+          <div class="field-error">NIP minimal 18 digit.</div>
+        </div>
+        <div class="field">
+          <label for="pegawai-nama">Nama</label>
+          <input type="text" id="pegawai-nama" required />
+        </div>
+        <div class="field">
+          <label>Kategori</label>
+          <div class="segmented" id="pegawai-kategori-segmented">
+            <button type="button" class="segmented__option" data-kategori="Bimas Islam">Staf Bimas Islam</button>
+            <button type="button" class="segmented__option" data-kategori="KUA">Staf KUA</button>
+          </div>
+          <input type="hidden" id="pegawai-kategori" />
+          <div class="field-error">Pilih kategori pegawai terlebih dahulu (Bimas Islam / KUA).</div>
+        </div>
+        <div class="field" id="field-pegawai-kua" style="display:none;">
+          <label for="pegawai-kua">KUA Kecamatan</label>
+          <select id="pegawai-kua">
+            <option value="">— Pilih KUA —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="pegawai-jabatan">Jabatan</label>
+          <input type="text" id="pegawai-jabatan" list="jabatan-options" required autocomplete="off" />
+          <div class="field-hint">Ketik atau pilih dari daftar sesuai kategori di atas.</div>
+        </div>
+        <datalist id="jabatan-options"></datalist>
+        <div class="field">
+          <label for="pegawai-alamat">Alamat</label>
+          <input type="text" id="pegawai-alamat" required />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--secondary" data-close-modal="modal-pegawai">Batal</button>
+        <button type="submit" class="btn btn--primary" id="btn-simpan-pegawai">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: KONFIRMASI (dipakai ulang di seluruh app) ===================== -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal modal--confirm" style="max-width: 400px;">
+    <div class="modal__header">
+      <h3 id="modal-confirm-title">Konfirmasi</h3>
+      <button class="icon-btn" type="button" data-close-modal="modal-confirm" aria-label="Tutup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal__body" id="modal-confirm-message">Yakin?</div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--secondary" data-close-modal="modal-confirm">Batal</button>
+      <button type="button" class="btn btn--danger" id="btn-confirm-yes">Ya, Lanjutkan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: DETAIL BERITA ACARA ===================== -->
+<div class="modal-overlay" id="modal-detail-ba">
+  <div class="modal" style="max-width: 620px;">
+    <div class="modal__header">
+      <h3>Detail Berita Acara</h3>
+      <button class="icon-btn" type="button" data-close-modal="modal-detail-ba" aria-label="Tutup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal__body">
+      <div class="readonly-summary" id="detail-ba-nomor" style="margin-bottom: var(--sp-4);"></div>
+
+      <div class="divider-label">Pihak Pertama</div>
+      <div id="detail-ba-pihak-satu" style="font-size: var(--fs-sm); color: var(--color-text-muted);"></div>
+
+      <div class="divider-label">Pihak Kedua</div>
+      <div id="detail-ba-pihak-kedua" style="font-size: var(--fs-sm); color: var(--color-text-muted);"></div>
+
+      <div class="divider-label">Data Sarana</div>
+      <div id="detail-ba-sarana" style="font-size: var(--fs-sm); color: var(--color-text-muted);"></div>
+
+      <div class="divider-label">Arsip Dokumen Tertandatangan</div>
+      <div id="detail-ba-arsip-existing" style="display:none; margin-bottom: var(--sp-3);">
+        <div class="inline-note inline-note--success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5"/></svg>
+          <span>Sudah diarsipkan —
+            <a href="#" id="detail-ba-arsip-preview">pratinjau</a> ·
+            <a id="detail-ba-arsip-link" href="#" target="_blank" rel="noopener">buka di Google Drive</a>
+          </span>
+        </div>
+      </div>
+      <p style="font-size: var(--fs-xs); color: var(--color-text-muted); margin-bottom: var(--sp-2);">
+        Setelah dicetak dan ditandatangani semua pihak, unggah hasil scan-nya di sini (PDF atau foto/gambar, maks. 15MB). Mengunggah lagi akan menambah file baru, arsip sebelumnya tetap tersimpan di Drive.
+      </p>
+      <input type="file" id="detail-ba-arsip-file" accept="application/pdf,image/*" style="margin-bottom: var(--sp-3); width:100%;" />
+      <div id="detail-ba-upload-result"></div>
+    </div>
+    <div class="modal__footer">
+      <button type="button" class="btn btn--secondary" id="btn-detail-download-pdf">Download PDF</button>
+      <button type="button" class="btn btn--primary" id="btn-detail-upload-arsip">Unggah ke Drive</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOAST ===================== -->
+<div class="toast-stack" id="toast-stack"></div>
+
+<script src="config.js"></script>
+<script src="logo-data.js"></script>
+<script src="api.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="document-previewer.js"></script>
+<script src="script.js"></script>
+<script src="pdf.js"></script>
+</body>
+</html>
