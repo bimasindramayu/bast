@@ -70,9 +70,16 @@ async function ensureJsPdfLoaded_() {
 //  1. Konstanta LOGO_BASE64 dari logo-data.js — dihasilkan sekali lewat
 //     assets/logo-converter.html. Ini PALING ANDAL karena logo sudah jadi
 //     bagian dari kode (bukan file yang perlu dimuat saat runtime), jadi
-//     tidak mungkin kena masalah file:// apa pun. Ini cara yang disarankan.
-//  2. fetch() ke assets/logo-kemenag.png — andal untuk resource lokal di
-//     direktori yang sama, TAPI beberapa browser membatasi ini.
+//     tidak mungkin kena masalah file:// apa pun. Ini cara yang disarankan
+//     — kalau logo tidak muncul, inilah yang seharusnya dijalankan dulu.
+//  2. fetch() ke assets/logo-kemenag.png — TERBUKTI selalu diblokir CORS
+//     oleh Chrome dkk. saat aplikasi dibuka lewat file:// ("Cross origin
+//     requests are only supported for protocol schemes: chrome, ... " —
+//     skema "file" memang tidak masuk daftar yang diizinkan sama sekali).
+//     Jadi langkah ini SENGAJA DILEWATI kalau halaman sedang berjalan dari
+//     file://, supaya tidak memunculkan error CORS di console yang sudah
+//     pasti gagal — hanya dicoba kalau aplikasi suatu saat di-hosting via
+//     http/https, di mana fetch() ini justru bisa berhasil.
 //  3. <img> + canvas — cara paling lama, tapi browser tertentu memperlakukan
 //     tiap URL file:// sebagai origin unik sehingga canvas.toDataURL() bisa
 //     gagal walau gambarnya berhasil TAMPIL sebagai <img>.
@@ -90,26 +97,28 @@ async function loadLogoAsDataUrl_(path) {
     if (dims) return { dataUrl: LOGO_BASE64, width: dims.width, height: dims.height };
   }
 
-  try {
-    const res = await fetch(path);
-    if (res.ok) {
-      const blob = await res.blob();
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('gagal membaca blob logo'));
-        reader.readAsDataURL(blob);
-      });
-      const dims = await new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve(null);
-        img.src = dataUrl;
-      });
-      if (dims) return { dataUrl: dataUrl, width: dims.width, height: dims.height };
+  if (window.location.protocol !== 'file:') {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        const blob = await res.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('gagal membaca blob logo'));
+          reader.readAsDataURL(blob);
+        });
+        const dims = await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+          img.onerror = () => resolve(null);
+          img.src = dataUrl;
+        });
+        if (dims) return { dataUrl: dataUrl, width: dims.width, height: dims.height };
+      }
+    } catch (e) {
+      // lanjut ke cara 3
     }
-  } catch (e) {
-    // lanjut ke cara 2
   }
 
   return new Promise((resolve) => {

@@ -120,13 +120,20 @@ di `appscript/Code.gs` berisi ID/link yang salah, atau foldernya tidak
 dimiliki/belum di-share ke akun yang men-deploy Web App ini. Kosongkan
 `ARSIP_FOLDER_ID` untuk memakai folder otomatis sebagai jalan pintas.
 
+**Kalau errornya persis *"You do not have permission to call
+UrlFetchApp.fetch"*** — `appsscript.json` di project ini sempat kurang satu
+scope (`script.external_request`, dibutuhkan `UrlFetchApp` itu sendiri
+untuk membuat request eksternal apa pun, terpisah dari scope `drive` untuk
+Google mengizinkan isi requestnya) dan sudah diperbaiki. **Perlu diulang:**
+salin ulang `appsscript.json` yang terbaru (langkah 2 di atas), lalu
+jalankan `authorizeDriveAccess()` sekali lagi — scope baru hanya berlaku
+setelah otorisasi diulang, sekalipun sebelumnya sudah pernah disetujui
+untuk scope yang lain.
+
 **Catatan teknis:** sejak update ini, semua panggilan Drive lewat REST API
 v3 langsung via `UrlFetchApp` (bukan layanan `DriveApp` bawaan Apps
 Script) — sesuai arahan langsung, dan supaya kode HTTP + pesan asli dari
 Google selalu terlihat jelas di pesan error, bukan dibungkus pesan generik.
-Izin yang dibutuhkan (`oauthScopes` di `appsscript.json`) tetap sama persis
-seperti sebelumnya — mengganti cara memanggilnya tidak mengurangi
-kebutuhan otorisasi itu.
 
 ### Jika Download PDF gagal karena jsPDF tidak termuat
 
@@ -140,20 +147,24 @@ memastikan, atau minta admin IT mengizinkan `cdnjs.cloudflare.com` dan
 ### Logo tidak muncul di PDF
 
 Percobaan sebelumnya (memuat `assets/logo-kemenag.png` saat runtime lewat
-`fetch()`/`<img>`+canvas) ternyata tidak selalu berhasil — beberapa
-browser memperlakukan setiap URL `file://` sebagai origin unik, sehingga
-`canvas.toDataURL()` gagal (`SecurityError`) meskipun gambarnya berhasil
-tampil normal sebagai `<img>`. Gejalanya persis seperti yang dilaporkan:
-file logo ada, tapi tidak pernah muncul di PDF, tanpa pesan error yang
-terlihat.
+`fetch()`/`<img>`+canvas) ternyata tidak selalu berhasil. Sudah dikonfirmasi
+persis kenapa: saat aplikasi dibuka lewat `file://`, Chrome (dan browser
+Chromium lain) **selalu** memblokir `fetch()` ke file lokal apa pun dengan
+CORS ("Cross origin requests are only supported for protocol schemes:
+chrome, ... " — skema "file" memang tidak termasuk yang diizinkan sama
+sekali, bukan soal pengaturan atau izin apa pun). `pdf.js` sekarang otomatis
+melewati percobaan `fetch()` itu kalau mendeteksi sedang berjalan dari
+`file://`, supaya tidak muncul error CORS yang memang sudah pasti gagal —
+langsung lanjut ke cara `<img>`+canvas. Tapi cara itu pun bisa gagal di
+sebagian browser (menganggap tiap URL `file://` sebagai origin unik,
+sehingga `canvas.toDataURL()` gagal walau gambarnya tampil normal).
 
-**Solusi sekarang:** logo tidak lagi "dimuat" sama sekali saat PDF dibuat
-— sudah jadi bagian dari kode lewat `logo-data.js` (konstanta
-`LOGO_BASE64`), dihasilkan sekali lewat `assets/logo-converter.html` (lihat
-langkah 8 di atas). Alat itu juga otomatis memperkecil gambar ke maksimal
-300px, jadi sekaligus menjawab keluhan ukuran file logo yang kebesaran.
-`pdf.js` tetap mencoba fetch/`<img>`+canvas sebagai cadangan kalau
-`logo-data.js` belum diisi, tapi cara `logo-data.js` inilah yang dijamin
+**Solusi yang disarankan (dan dijamin berhasil):** logo tidak lagi "dimuat"
+sama sekali saat PDF dibuat — sudah jadi bagian dari kode lewat
+`logo-data.js` (konstanta `LOGO_BASE64`), dihasilkan sekali lewat
+`assets/logo-converter.html` (lihat langkah 8 di atas). Alat itu juga
+otomatis memperkecil gambar ke maksimal 300px, jadi sekaligus menjawab
+keluhan ukuran file logo yang kebesaran. Ini satu-satunya cara yang
 selalu berhasil di semua browser.
 
 ### Pratinjau arsip (DocumentPreviewer)
