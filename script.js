@@ -816,6 +816,7 @@ async function loadRiwayat() {
   tbody.innerHTML = '<tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>';
   try {
     await ensureSettingsCache(); // dibutuhkan untuk merakit Nomor Surat lengkap di tabel/detail/PDF
+    if (!_pegawaiLoadedOnce) await loadPegawai(); // dibutuhkan untuk mencetak Jabatan lengkap (unit kerja) di PDF
     const data = await Api.getBeritaAcara();
     _riwayatCache = data || [];
     _riwayatLoadedOnce = true;
