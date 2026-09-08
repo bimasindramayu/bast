@@ -160,7 +160,14 @@ const KUA_NAMES_ = [
   'Kedokan Bunder', 'Kertasemaya', 'Krangkeng', 'Kroya', 'Lelea', 'Lohbener', 'Losarang',
   'Pasekan', 'Patrol', 'Sindang', 'Sliyeg', 'Sukagumiwang', 'Sukra', 'Terisi', 'Tukdana', 'Widasari'
 ];
-const ALAMAT_BIMAS_DEFAULT_ = 'Jl. Olah Raga No. 03 Indramayu';
+// Alamat lengkap (menyertakan Kelurahan/Kecamatan/Kabupaten) sudah diverifikasi
+// terhadap situs resmi kemenagindramayu.com — dipakai untuk mengisi Alamat
+// pegawai Bimas Islam BARU secara default (lihat savePegawai/migrateDatabase
+// di bawah). Untuk pegawai yang SUDAH ADA dengan Alamat versi lama/pendek,
+// lihat setting ALAMAT_BIMAS_LENGKAP di DEFAULT_SETTINGS — itu yang dipakai
+// sebagai fallback saat mencetak PDF (lihat resolveAlamatLengkapPihakSatu_ di
+// script.js), supaya BA lama tidak perlu diedit satu per satu secara manual.
+const ALAMAT_BIMAS_DEFAULT_ = 'Jl. Olah Raga No. 03, Kelurahan Karanganyar, Kecamatan Indramayu, Kabupaten Indramayu';
 
 const DEFAULT_SETTINGS = {
   APP_NAME: 'Berita Acara Serah Terima Sarana Administrasi NR',
@@ -174,7 +181,13 @@ const DEFAULT_SETTINGS = {
   KODE_KANTOR: 'Kk.10.12',
   KODE_KLASIFIKASI: 'PW.01',
   NOMOR_FORMAT_TEMPLATE: 'B.{NOMOR}/{KODE_KANTOR}/{BULAN_ROMAWI}/{KODE_KLASIFIKASI}/{BULAN_ANGKA}/{TAHUN}',
-  TAHUN_AKTIF: ''         // diisi runtime dengan tahun berjalan
+  TAHUN_AKTIF: '',        // diisi runtime dengan tahun berjalan
+  // BARU — dipakai di PDF & detail Riwayat sebagai alamat Pihak Pertama kalau
+  // Alamat pegawai yang tersimpan (banyak berasal dari migrasi data Master
+  // lama) belum menyebutkan Kecamatan/Kabupaten. Diisi otomatis dengan nilai
+  // resmi di atas, tapi tetap bisa diubah lewat halaman Pengaturan kalau
+  // ternyata alamat kantornya berbeda/berpindah.
+  ALAMAT_BIMAS_LENGKAP: ALAMAT_BIMAS_DEFAULT_
 };
 
 // ============================================================================
@@ -326,8 +339,48 @@ function validateMasterHeaders_(sheet) {
 function ensureBootstrapped_() {
   const ss = getSpreadsheet_();
   const needsInit = !ss.getSheetByName(SHEET_PEGAWAI) || !ss.getSheetByName(SHEET_SETTING);
-  if (needsInit) initializeDatabase();
+  if (needsInit) {
+    initializeDatabase(); // sudah menyeed SEMUA DEFAULT_SETTINGS untuk sheet baru
+  } else {
+    ensureSettingDefaults_(); // sheet SETTING sudah ada dari sebelumnya -> pastikan key BARU tetap ter-seed
+  }
   ensureMasterArsipColumn_();
+}
+
+// Menambahkan key SETTING yang mungkin baru ditambahkan pada versi aplikasi
+// yang lebih baru (mis. ALAMAT_BIMAS_LENGKAP), TANPA menyentuh nilai yang
+// sudah ada untuk key yang sudah ada sebelumnya. Aman dipanggil di setiap
+// request (idempotent, hanya menulis kalau ada key yang benar-benar belum
+// ada) — dipakai supaya deployment yang SUDAH berjalan sebelum sebuah key
+// baru ditambahkan ke DEFAULT_SETTINGS tetap otomatis mendapat nilai
+// default-nya (cukup refresh halaman), tanpa perlu menjalankan
+// initializeDatabase() dari awal atau migrasi manual apa pun.
+function ensureSettingDefaults_() {
+  const sheet = getSheet_(SHEET_SETTING);
+  const existing = readSettingSheet_(sheet);
+  const missingKeys = Object.keys(DEFAULT_SETTINGS).filter(function (key) { return existing[key] === undefined; });
+  if (!missingKeys.length) return;
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    // Baca ulang SETELAH dapat lock, supaya tidak menulis key ganda kalau ada
+    // request lain yang sudah menyeed-nya duluan selagi menunggu lock ini.
+    const freshExisting = readSettingSheet_(sheet);
+    const toSeed = [];
+    missingKeys.forEach(function (key) {
+      if (freshExisting[key] !== undefined) return;
+      let value = DEFAULT_SETTINGS[key];
+      if (key === 'CREATED_AT' && !value) value = new Date().toISOString();
+      if (key === 'TAHUN_AKTIF' && !value) value = String(new Date().getFullYear());
+      toSeed.push([key, value]);
+    });
+    if (toSeed.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, toSeed.length, 2).setValues(toSeed);
+    }
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Kolom LINK_ARSIP (28) ditambahkan belakangan untuk fitur arsip Drive

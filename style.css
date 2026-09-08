@@ -392,9 +392,11 @@ select:focus-visible,
   box-shadow: 0 0 0 3px var(--color-primary-tint);
 }
 .field input[readonly],
-.field input:disabled {
+.field input:disabled,
+.field select:disabled {
   background: var(--color-surface);
   color: var(--color-text-muted);
+  cursor: not-allowed;
 }
 .field--mono input { font-family: var(--font-mono); }
 .field-hint { font-size: var(--fs-xs); color: var(--color-text-faint); margin-top: 4px; }
@@ -404,6 +406,38 @@ select:focus-visible,
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-4); }
 .form-grid .field--full { grid-column: 1 / -1; }
+
+/* Baris label + aksi kecil sejajar (mis. label "Pilih Pegawai" + tombol
+   "+ Tambah Pegawai Baru") — dipakai di form Buat BA, lihat perbaikan UX #2. */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 6px;
+}
+.field-label-row label { margin-bottom: 0; }
+
+/* Tombol bergaya tautan (bukan tombol berbingkai penuh) untuk aksi sekunder
+   yang ditempel dekat sebuah field, mis. "+ Tambah Pegawai Baru". */
+.link-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.link-action svg { width: 13px; height: 13px; }
+.link-action:hover { color: var(--color-primary-dark); text-decoration: underline; }
+.inline-note .link-action { color: var(--color-warning); text-decoration: underline; }
+.inline-note .link-action:hover { color: #7a4e09; }
 
 .search-input-wrap { position: relative; max-width: 320px; }
 .search-input-wrap svg {

@@ -203,7 +203,7 @@ async function generateBeritaAcaraPdf(record) {
   const marginLeft = 20, marginRight = 20;
   const contentWidth = pageWidth - marginLeft - marginRight;
   const settings = _settingsCache || {};
-  let y = 10;
+  let y = 12;
 
   const logo = await loadLogoAsDataUrl_('assets/logo-kemenag.png');
 
@@ -297,7 +297,11 @@ y += 3;
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakSatuNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakSatuNip, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakSatuNip, record.pihakSatuJabatan), marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakSatuAlamat, marginLeft, y, 22);
+  // Alamat dirakit lewat resolveAlamatLengkapPihakSatu_() (script.js), BUKAN
+  // langsung record.pihakSatuAlamat — supaya PASTI menyertakan Kecamatan &
+  // Kabupaten walau data pegawai yang tersimpan (banyak berasal dari migrasi
+  // Master lama) masih versi pendek. Lihat komentar lengkap di script.js.
+  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakSatu_(record), marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK PERTAMA :', marginLeft, y);
   y += 7;
@@ -306,7 +310,11 @@ y += 3;
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakKeduaNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakKeduaNip, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakKeduaNip, record.pihakKeduaJabatan), marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakKeduaAlamat, marginLeft, y, 22);
+  // Sama seperti Pihak Pertama di atas — resolveAlamatLengkapPihakKedua_()
+  // mengutamakan alamat resmi dari KUA_LIST (sudah pasti lengkap dengan
+  // Kecamatan+Kabupaten) berdasarkan KUA pegawainya, bukan teks Alamat lama
+  // yang tersimpan apa adanya.
+  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakKedua_(record), marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK KEDUA .', marginLeft, y);
   y += 8;

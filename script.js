@@ -45,7 +45,14 @@ const JABATAN_KUA = [
   'Pengadministrasi', 'Pengelola Umum Operasional', 'Penata Layanan Operasional',
   'Operator Layanan Operasional', 'Operator KUA', 'Tenaga Administrasi', 'Staf KUA', 'Honorer'
 ];
-const ALAMAT_BIMAS_DEFAULT = 'Jl. Olah Raga No. 03 Indramayu';
+// Alamat lengkap (Kelurahan/Kecamatan/Kabupaten sudah diverifikasi terhadap
+// situs resmi kemenagindramayu.com) — dipakai sebagai saran default Alamat
+// saat menambah pegawai Bimas Islam baru. Untuk pegawai LAMA yang Alamat-nya
+// masih versi pendek, lihat resolveAlamatLengkapPihakSatu_() di bawah, yang
+// memakai setting ALAMAT_BIMAS_LENGKAP (bisa diubah di halaman Pengaturan)
+// sebagai fallback khusus saat mencetak, tanpa perlu mengedit data pegawai
+// satu per satu.
+const ALAMAT_BIMAS_DEFAULT = 'Jl. Olah Raga No. 03, Kelurahan Karanganyar, Kecamatan Indramayu, Kabupaten Indramayu';
 const KUA_LIST = [
   { nama: 'Anjatan', alamat: 'Jl. Raya Cilandak No. 31, Kecamatan Anjatan, Kabupaten Indramayu' },
   { nama: 'Arahan', alamat: 'Jl. Raya Cidempet, Kecamatan Arahan, Kabupaten Indramayu' },
@@ -80,14 +87,26 @@ const KUA_LIST = [
   { nama: 'Widasari', alamat: 'Jl. Komplek Masjid Jami\' Miftahul Jannah, Desa Kongsijaya No. 1, Kecamatan Widasari, Kabupaten Indramayu' }
 ];
 
-function populateKuaSelect() {
-  const select = document.getElementById('pegawai-kua');
+// Mengisi satu <select> dengan 31 opsi KUA Kecamatan. Dipakai untuk beberapa
+// dropdown berbeda yang semuanya butuh daftar KUA yang sama persis: combobox
+// KUA di modal Pegawai, filter KUA di Buat BA (Pihak Kedua — lihat perbaikan
+// UX #1), dan filter KUA di Riwayat (perbaikan #5). Elemen pemanggil sudah
+// menaruh <option value="">— placeholder —</option> sendiri di HTML, jadi
+// fungsi ini hanya menambahkan 31 opsi KUA-nya saja.
+function populateKuaOptionsInto(select) {
+  if (!select) return;
   KUA_LIST.forEach((k) => {
     const opt = document.createElement('option');
     opt.value = k.nama;
     opt.textContent = k.nama;
     select.appendChild(opt);
   });
+}
+
+function populateKuaSelect() {
+  populateKuaOptionsInto(document.getElementById('pegawai-kua'));
+  populateKuaOptionsInto(document.getElementById('ba-pihak-kedua-kua'));
+  populateKuaOptionsInto(document.getElementById('riwayat-filter-kua'));
 }
 
 function populateJabatanDatalist(kategori) {
@@ -372,27 +391,62 @@ document.getElementById('pegawai-search').addEventListener('input', (e) => {
   renderPegawaiTable(filtered);
 });
 
-function openAddPegawaiModal() {
-  document.getElementById('modal-pegawai-title').textContent = 'Tambah Pegawai';
+// Konteks "tambah cepat" — diisi kalau modal Pegawai dibuka dari dalam form
+// Buat BA (lihat perbaikan UX #2), supaya sesudah simpan sukses kita tahu
+// pegawai baru itu harus otomatis terpilih di dropdown Pihak mana, dan
+// (untuk Pihak Kedua) KUA apa yang sedang difilter saat itu. null kalau
+// modal dibuka dengan cara biasa dari halaman Pegawai — perilaku lama sama
+// sekali tidak berubah untuk jalur itu.
+let _pegawaiModalContext = null;
+
+function openAddPegawaiModal(context) {
+  _pegawaiModalContext = context || null;
+  document.getElementById('modal-pegawai-title').textContent = context ? 'Tambah Pegawai Baru' : 'Tambah Pegawai';
   document.getElementById('form-pegawai').reset();
   document.getElementById('pegawai-original-nip').value = '';
   document.getElementById('pegawai-nip').disabled = false;
   clearFieldError('pegawai-nip');
-  document.querySelectorAll('#pegawai-kategori-segmented .segmented__option').forEach((btn) => btn.classList.remove('is-active'));
+  document.querySelectorAll('#pegawai-kategori-segmented .segmented__option').forEach((btn) => {
+    btn.classList.remove('is-active');
+    btn.disabled = false; // reset kunci dari kemungkinan pemakaian context sebelumnya
+  });
   document.getElementById('pegawai-kategori').value = '';
   document.getElementById('field-pegawai-kua').style.display = 'none';
   populateJabatanDatalist('');
   document.getElementById('pegawai-kategori-segmented').closest('.field').classList.remove('has-error');
+
+  if (context && context.presetKategori) {
+    setPegawaiKategori(context.presetKategori);
+    // Kunci pilihan Kategori ke sisi yang sedang diisi di form Buat BA, supaya
+    // pegawai baru ini dijamin muncul di dropdown yang benar sesudah disimpan
+    // (mis. tidak sengaja tersimpan sebagai "KUA" padahal dibuka dari Pihak
+    // Pertama). Tetap bisa dibatalkan dengan menutup modal ini.
+    document.querySelectorAll('#pegawai-kategori-segmented .segmented__option').forEach((btn) => {
+      btn.disabled = btn.dataset.kategori !== context.presetKategori;
+    });
+    if (context.presetKua) {
+      document.getElementById('pegawai-kua').value = context.presetKua;
+      const kua = KUA_LIST.find((k) => k.nama === context.presetKua);
+      if (kua) document.getElementById('pegawai-alamat').value = kua.alamat;
+    }
+  }
+
   openModal('modal-pegawai');
+  document.getElementById('pegawai-nip').focus();
 }
 
 function openEditPegawaiModal(nip) {
   const p = _pegawaiCache.find((x) => x.nip === nip);
   if (!p) return;
+  _pegawaiModalContext = null; // Edit selalu jalur biasa, tidak pernah dari "tambah cepat" Buat BA
   document.getElementById('modal-pegawai-title').textContent = 'Ubah Pegawai';
   document.getElementById('pegawai-original-nip').value = p.nip;
   document.getElementById('pegawai-nip').value = p.nip;
   document.getElementById('pegawai-nama').value = p.nama;
+  // Pastikan Kategori tidak terkunci dari kemungkinan sisa pemakaian "+ Tambah
+  // Pegawai Baru" sebelumnya yang dibatalkan (mis. modal ditutup tanpa
+  // disimpan) — Edit harus selalu bisa memilih kedua Kategori dengan bebas.
+  document.querySelectorAll('#pegawai-kategori-segmented .segmented__option').forEach((btn) => { btn.disabled = false; });
   setPegawaiKategori(p.kategori || '');
   document.getElementById('pegawai-kua').value = p.kua || '';
   document.getElementById('pegawai-jabatan').value = p.jabatan;
@@ -401,7 +455,11 @@ function openEditPegawaiModal(nip) {
   openModal('modal-pegawai');
 }
 
-document.getElementById('btn-tambah-pegawai').addEventListener('click', openAddPegawaiModal);
+// Panggilan tanpa argumen secara eksplisit (bukan hanya `openAddPegawaiModal`
+// sebagai referensi) — supaya addEventListener tidak menyelipkan objek Event
+// klik sebagai parameter `context`, yang akan salah dikira sebagai konteks
+// "tambah cepat" dari form Buat BA.
+document.getElementById('btn-tambah-pegawai').addEventListener('click', () => openAddPegawaiModal());
 
 function clearFieldError(inputId) {
   document.getElementById(inputId).closest('.field').classList.remove('has-error');
@@ -441,6 +499,8 @@ document.getElementById('form-pegawai').addEventListener('submit', async (e) => 
 
   const btn = document.getElementById('btn-simpan-pegawai');
   setButtonLoading(btn, true, 'Menyimpan...');
+  const isNewPegawai = !originalNip;
+  const quickAddContext = _pegawaiModalContext; // simpan dulu — direset di finally sebelum promise ini selesai
   try {
     const payload = { nip, nama, kategori, kua, jabatan, alamat };
     if (originalNip) {
@@ -453,12 +513,49 @@ document.getElementById('form-pegawai').addEventListener('submit', async (e) => 
     closeModal('modal-pegawai');
     await loadPegawai();
     loadDashboard(); // total pegawai di dashboard ikut berubah
+
+    // Kalau modal ini dibuka dari tombol "+ Tambah Pegawai Baru" di form Buat
+    // BA (perbaikan UX #2), langsung pilihkan pegawai yang baru saja disimpan
+    // di dropdown yang sesuai — user tidak perlu pindah halaman & mengulang
+    // pengisian form sama sekali.
+    if (isNewPegawai && quickAddContext && quickAddContext.target) {
+      applyPegawaiQuickAddSelection_(nip, quickAddContext);
+    }
   } catch (err) {
     toast(err.message, 'error');
   } finally {
     setButtonLoading(btn, false);
+    _pegawaiModalContext = null;
   }
 });
+
+// Sesudah pegawai baru berhasil disimpan lewat tombol "+ Tambah Pegawai Baru"
+// di form Buat BA: segarkan dropdown terkait & langsung pilihkan pegawai
+// tsb, supaya alur "isi form -> sadar pegawainya belum ada -> tambah -> lanjut
+// isi form" jadi satu alur mulus tanpa pindah halaman ataupun kehilangan
+// isian lain yang sudah diisi (tanggal, porporasi, dst. tetap seperti semula
+// karena form Buat BA sama sekali tidak di-reset di sini).
+function applyPegawaiQuickAddSelection_(nip, context) {
+  const p = _pegawaiCache.find((x) => x.nip === nip);
+  if (!p) return;
+
+  if (context.target === 'satu' && p.kategori === 'Bimas Islam') {
+    populatePihakDropdown('ba-pihak-satu', 'Bimas Islam');
+    document.getElementById('ba-pihak-satu').value = p.nip;
+    fillPihakDisplay('ba-satu', p);
+    toast('Pegawai baru langsung dipilih sebagai Pihak Pertama.');
+  } else if (context.target === 'kedua' && p.kategori === 'KUA') {
+    document.getElementById('ba-pihak-kedua-kua').value = p.kua || '';
+    populatePihakKeduaByKua_(p.kua || '');
+    document.getElementById('ba-pihak-kedua').value = p.nip;
+    fillPihakDisplay('ba-dua', p);
+    toast('Pegawai baru langsung dipilih sebagai Pihak Kedua.');
+  }
+  // Kategori yang dipilih tidak cocok dengan target (mis. dikunci tapi tetap
+  // beda) -> pegawai tetap tersimpan & tersedia di halaman Pegawai, hanya
+  // tidak otomatis terpilih di sini. Tidak seharusnya terjadi karena Kategori
+  // dikunci di openAddPegawaiModal(), tapi dijaga supaya tidak pernah error.
+}
 
 function handleDeletePegawai(nip) {
   const p = _pegawaiCache.find((x) => x.nip === nip);
@@ -505,6 +602,7 @@ async function loadSettings() {
     document.getElementById('set-kode-klasifikasi').value = data.KODE_KLASIFIKASI || '';
     document.getElementById('set-nomor-format').value = data.NOMOR_FORMAT_TEMPLATE || '';
     document.getElementById('set-tahun-aktif').value = data.TAHUN_AKTIF || '';
+    document.getElementById('set-alamat-bimas-lengkap').value = data.ALAMAT_BIMAS_LENGKAP || '';
 
     document.getElementById('info-app-name').textContent = data.APP_NAME || '–';
     document.getElementById('info-db-version').textContent = data.DB_VERSION || '–';
@@ -527,9 +625,10 @@ document.getElementById('form-pengaturan').addEventListener('submit', async (e) 
       KODE_KANTOR: document.getElementById('set-kode-kantor').value.trim(),
       KODE_KLASIFIKASI: document.getElementById('set-kode-klasifikasi').value.trim(),
       NOMOR_FORMAT_TEMPLATE: document.getElementById('set-nomor-format').value.trim(),
-      TAHUN_AKTIF: document.getElementById('set-tahun-aktif').value.trim()
+      TAHUN_AKTIF: document.getElementById('set-tahun-aktif').value.trim(),
+      ALAMAT_BIMAS_LENGKAP: document.getElementById('set-alamat-bimas-lengkap').value.trim()
     });
-    await fetchSettings(); // segarkan cache supaya halaman Buat BA ikut memakai nilai terbaru
+    await fetchSettings(); // segarkan cache supaya halaman Buat BA & Riwayat ikut memakai nilai terbaru
     toast('Pengaturan berhasil disimpan.');
   } catch (err) {
     toast(err.message, 'error');
@@ -558,6 +657,49 @@ function populatePihakDropdown(selectId, kategori) {
   if (options.some((p) => p.nip === currentValue)) select.value = currentValue;
 }
 
+// ---- Perbaikan UX #1: pilih KUA dulu, baru pilih pegawainya -------------
+// Dulu dropdown "Pilih Pegawai" Pihak Kedua langsung berisi SEMUA pegawai
+// kategori KUA lintas 31 kecamatan sekaligus (bisa puluhan/ratusan opsi,
+// sulit dicari). Sekarang dipecah dua langkah: pilih KUA Kecamatan dulu
+// (#ba-pihak-kedua-kua, daftar tetap 31 KUA), baru dropdown pegawai
+// (#ba-pihak-kedua) difilter hanya menampilkan staf KUA yang dipilih itu.
+function populatePihakKeduaByKua_(kuaNama) {
+  const select = document.getElementById('ba-pihak-kedua');
+  const currentValue = select.value;
+  const emptyStateEl = document.getElementById('ba-pihak-kedua-kosong');
+
+  if (!kuaNama) {
+    select.innerHTML = '<option value="">— Pilih KUA dahulu —</option>';
+    select.disabled = true;
+    if (emptyStateEl) emptyStateEl.style.display = 'none';
+    if (currentValue) fillPihakDisplay('ba-dua', null);
+    return;
+  }
+
+  const options = _pegawaiCache.filter((p) => p.kategori === 'KUA' && p.kua === kuaNama);
+  select.disabled = false;
+
+  if (!options.length) {
+    select.innerHTML = '<option value="">— Belum ada pegawai untuk KUA ini —</option>';
+    if (emptyStateEl) {
+      emptyStateEl.style.display = 'flex';
+      const nameEl = document.getElementById('ba-pihak-kedua-kosong-nama');
+      if (nameEl) nameEl.textContent = kuaNama;
+    }
+    fillPihakDisplay('ba-dua', null);
+    return;
+  }
+
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+  select.innerHTML = '<option value="">— Pilih —</option>' +
+    options.map((p) => `<option value="${escapeHtml(p.nip)}">${escapeHtml(p.nama + ' — ' + p.jabatan)}</option>`).join('');
+  if (options.some((p) => p.nip === currentValue)) {
+    select.value = currentValue;
+  } else {
+    fillPihakDisplay('ba-dua', null); // KUA berganti & pilihan lama tidak berlaku lagi di sini
+  }
+}
+
 function fillPihakDisplay(prefix, pegawai) {
   document.getElementById(prefix + '-nama').value = pegawai ? pegawai.nama : '';
   document.getElementById(prefix + '-nip').value = pegawai ? pegawai.nip : '';
@@ -568,9 +710,26 @@ function fillPihakDisplay(prefix, pegawai) {
 document.getElementById('ba-pihak-satu').addEventListener('change', (e) => {
   fillPihakDisplay('ba-satu', _pegawaiCache.find((x) => x.nip === e.target.value));
 });
+document.getElementById('ba-pihak-kedua-kua').addEventListener('change', (e) => {
+  populatePihakKeduaByKua_(e.target.value);
+});
 document.getElementById('ba-pihak-kedua').addEventListener('change', (e) => {
   fillPihakDisplay('ba-dua', _pegawaiCache.find((x) => x.nip === e.target.value));
 });
+
+// ---- Perbaikan UX #2: tambah pegawai baru tanpa pindah halaman ----------
+document.getElementById('btn-quick-add-satu').addEventListener('click', () => {
+  openAddPegawaiModal({ target: 'satu', presetKategori: 'Bimas Islam' });
+});
+document.getElementById('btn-quick-add-kedua').addEventListener('click', () => {
+  const currentKua = document.getElementById('ba-pihak-kedua-kua').value;
+  openAddPegawaiModal({ target: 'kedua', presetKategori: 'KUA', presetKua: currentKua || undefined });
+});
+document.getElementById('btn-quick-add-kedua-kosong').addEventListener('click', () => {
+  const currentKua = document.getElementById('ba-pihak-kedua-kua').value;
+  openAddPegawaiModal({ target: 'kedua', presetKategori: 'KUA', presetKua: currentKua || undefined });
+});
+
 
 // Ekstraksi murni (tanpa sentuh DOM) supaya bisa dipakai ulang oleh pdf.js
 // untuk mencetak Nomor Surat lengkap yang identik dengan pratinjau di form.
@@ -687,6 +846,7 @@ function resetBuatBaForm() {
   document.getElementById('ba-bulan-surat').dataset.userChanged = '';
   fillPihakDisplay('ba-satu', null);
   fillPihakDisplay('ba-dua', null);
+  populatePihakKeduaByKua_(''); // form.reset() tidak memicu event 'change', jadi dropdown pegawai KUA perlu dikosongkan manual
   document.getElementById('ba-porporasi-check-result').innerHTML = '';
   document.getElementById('ba-tanggal').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ba-auto-hitung').checked = true;
@@ -700,7 +860,13 @@ async function loadBuatBaPage() {
   await ensureSettingsCache();
 
   populatePihakDropdown('ba-pihak-satu', 'Bimas Islam');
-  populatePihakDropdown('ba-pihak-kedua', 'KUA');
+  // Dropdown KUA (#ba-pihak-kedua-kua) berisi daftar tetap 31 kecamatan yang
+  // sudah diisi sekali lewat populateKuaSelect() saat halaman pertama kali
+  // dimuat — di sini cukup segarkan dropdown pegawai untuk KUA yang SEDANG
+  // dipilih (kalau ada), supaya pegawai baru yang ditambahkan lewat halaman
+  // Pegawai (atau tombol "+ Tambah Pegawai Baru") langsung ikut muncul tanpa
+  // menghilangkan KUA yang sudah dipilih sebelumnya.
+  populatePihakKeduaByKua_(document.getElementById('ba-pihak-kedua-kua').value);
 
   document.getElementById('ba-kasi-nama-display').value = _settingsCache.KASI_NAMA || '(belum diatur)';
   document.getElementById('ba-kasi-nip-display').value = _settingsCache.KASI_NIP || '–';
@@ -775,6 +941,86 @@ document.getElementById('form-buat-ba').addEventListener('submit', async (e) => 
 // 8C. RIWAYAT
 // ============================================================================
 
+// ---- Perbaikan #3, #4, #5: resolusi "unit kerja" & "alamat lengkap" -------
+// Baris Master/BA lama hanya menyimpan Nama/NIP/Jabatan/Alamat sebagai teks
+// bebas per pihak (tidak ada kolom Kategori/KUA per-BA — lihat catatan skema
+// Master di Code.gs), jadi untuk menampilkan "tempat kerja" (perbaikan #4)
+// dan memastikan Alamat tercetak lengkap dengan Kecamatan+Kabupaten
+// (perbaikan #3) di PDF & detail Riwayat, fungsi-fungsi berikut menelusuri
+// balik NIP-nya ke data Pegawai SAAT INI. Kalau pegawainya sudah terlanjur
+// dihapus dari Pegawai, dicoba tebak dari teks Jabatan yang tersimpan di
+// baris BA itu sendiri (mencocokkan salah satu dari 31 nama KUA sebagai
+// substring) — pendekatan yang sama seperti inferJabatanKua_() di Code.gs
+// untuk membaca data Master lama. Dipakai bersama oleh script.js (tabel
+// Riwayat, modal Detail) dan pdf.js (pdf.js dimuat SETELAH script.js di
+// index.html, jadi fungsi-fungsi global di sini sudah tersedia untuknya).
+
+function resolveKuaNamaUntukPihakKedua_(pihakKeduaNip, pihakKeduaJabatan) {
+  const p = _pegawaiCache.find((x) => x.nip === pihakKeduaNip);
+  if (p && p.kua) return p.kua;
+  const jabatanUpper = String(pihakKeduaJabatan || '').toUpperCase();
+  const found = KUA_LIST.find((k) => jabatanUpper.indexOf(k.nama.toUpperCase()) !== -1);
+  return found ? found.nama : '';
+}
+
+// Dipakai untuk kolom "KUA" baru di tabel Riwayat (perbaikan #5).
+function getKuaLabelForRecord_(r) {
+  return resolveKuaNamaUntukPihakKedua_(r.pihakKeduaNip, r.pihakKeduaJabatan);
+}
+
+// Dipakai untuk baris "Tempat Kerja" baru di modal Detail BA (perbaikan #4).
+// kategoriKonteks WAJIB diisi oleh pemanggil ('Bimas Islam' untuk Pihak
+// Pertama, 'KUA' untuk Pihak Kedua) karena itu memang aturan tetap aplikasi
+// ini, terlepas dari apakah NIP-nya masih ada di data Pegawai atau tidak.
+function getTempatKerjaLabel_(nip, jabatanFallback, kategoriKonteks) {
+  const p = _pegawaiCache.find((x) => x.nip === nip);
+  if (p && p.kategori === 'KUA') return 'KUA Kecamatan ' + (p.kua || '(kecamatan tidak diketahui)');
+  if (p && p.kategori === 'Bimas Islam') return 'Seksi Bimas Islam';
+
+  if (kategoriKonteks === 'Bimas Islam') return 'Seksi Bimas Islam';
+  if (kategoriKonteks === 'KUA') {
+    const kuaNama = resolveKuaNamaUntukPihakKedua_(nip, jabatanFallback);
+    return kuaNama ? ('KUA Kecamatan ' + kuaNama) : 'KUA Kecamatan (tidak diketahui)';
+  }
+  return '-';
+}
+
+// "Lengkap" di sini berarti sudah menyebut Kecamatan & Kabupaten — dua kata
+// kunci yang diminta ("...pastikan lengkap dengan kecamatan dan kabupaten").
+function alamatSudahLengkap_(alamat) {
+  const upper = String(alamat || '').toUpperCase();
+  return upper.indexOf('KECAMATAN') !== -1 && upper.indexOf('KABUPATEN') !== -1;
+}
+
+// Pihak Kedua selalu staf KUA -> alamat RESMI (dengan Kecamatan+Kabupaten)
+// sudah ada di KUA_LIST (dipakai juga untuk auto-isi form Tambah Pegawai),
+// jadi itu yang diutamakan — lebih bisa diandalkan daripada teks Alamat versi
+// lama yang tersimpan di baris BA/Pegawai, yang untuk banyak data migrasi
+// ternyata memang belum menyebut Kecamatan/Kabupaten (lihat contoh pada
+// laporan: "Jl. Raya Cilandak No. 31, Indramayu" seharusnya KUA Anjatan).
+function resolveAlamatLengkapPihakKedua_(record) {
+  const raw = String(record.pihakKeduaAlamat || '').trim();
+  const kuaNama = resolveKuaNamaUntukPihakKedua_(record.pihakKeduaNip, record.pihakKeduaJabatan);
+  const kuaData = KUA_LIST.find((k) => k.nama === kuaNama);
+  if (kuaData) return kuaData.alamat;
+  if (raw && alamatSudahLengkap_(raw)) return raw;
+  if (raw && kuaNama) return raw + ', Kecamatan ' + kuaNama + ', Kabupaten Indramayu';
+  return raw || '-';
+}
+
+// Pihak Pertama selalu staf Seksi Bimas Islam (satu alamat kantor untuk
+// semua) — kalau Alamat yang tersimpan di baris BA belum lengkap, dipakai
+// setting ALAMAT_BIMAS_LENGKAP (bisa diubah di halaman Pengaturan) sebagai
+// gantinya, bukan konstanta tertanam, supaya kalau kantornya pindah suatu
+// saat, cukup diubah dari Pengaturan tanpa perlu edit kode.
+function resolveAlamatLengkapPihakSatu_(record) {
+  const raw = String(record.pihakSatuAlamat || '').trim();
+  if (raw && alamatSudahLengkap_(raw)) return raw;
+  const fallback = (_settingsCache && _settingsCache.ALAMAT_BIMAS_LENGKAP) || '';
+  if (fallback) return fallback;
+  return raw || ALAMAT_BIMAS_DEFAULT;
+}
+
 // ---- Pratinjau arsip lewat DocumentPreviewer (document-previewer.js) ----
 // driveFetcher WAJIB dipakai (bukan mengandalkan API key + fetch langsung
 // dari browser) karena endpoint alt=media milik Drive API tidak mengirim
@@ -813,17 +1059,17 @@ const RIWAYAT_PAGE_SIZE = 15;
 
 async function loadRiwayat() {
   const tbody = document.getElementById('riwayat-tbody');
-  tbody.innerHTML = '<tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>';
   try {
     await ensureSettingsCache(); // dibutuhkan untuk merakit Nomor Surat lengkap di tabel/detail/PDF
-    if (!_pegawaiLoadedOnce) await loadPegawai(); // dibutuhkan untuk mencetak Jabatan lengkap (unit kerja) di PDF
+    if (!_pegawaiLoadedOnce) await loadPegawai(); // dibutuhkan untuk mencetak Jabatan lengkap (unit kerja) & kolom KUA
     const data = await Api.getBeritaAcara();
     _riwayatCache = data || [];
     _riwayatLoadedOnce = true;
     populateRiwayatFilters();
     applyRiwayatFilters();
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty">Gagal memuat: ' + escapeHtml(err.message) + '</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="table-empty">Gagal memuat: ' + escapeHtml(err.message) + '</div></td></tr>';
     toast(err.message, 'error');
   }
 }
@@ -834,6 +1080,11 @@ function populateRiwayatFilters() {
     const tahunSet = Array.from(new Set(_riwayatCache.map((r) => r.tahun).filter(Boolean))).sort().reverse();
     tahunSelect.innerHTML = '<option value="">Semua Tahun</option>' + tahunSet.map((t) => `<option value="${t}">${t}</option>`).join('');
   }
+  // Filter Bulan & KUA statis (semua 12 bulan / 31 KUA selalu ditampilkan,
+  // terlepas dari isi data saat ini) — konsisten dengan pola yang sudah ada
+  // untuk filter Bulan. Keduanya diisi sekali lewat populateKuaSelect() /
+  // baris di bawah, jadi di sini tidak perlu (dan tidak boleh) diisi ulang
+  // berdasarkan _riwayatCache, supaya tidak konflik dengan pengisian awal itu.
   const bulanSelect = document.getElementById('riwayat-filter-bulan');
   if (bulanSelect.options.length <= 1) {
     bulanSelect.innerHTML = '<option value="">Semua Bulan</option>' + BULAN_ID.map((b, i) => `<option value="${i + 1}">${b}</option>`).join('');
@@ -849,6 +1100,7 @@ function riwayatFieldForSort_(r, key) {
   if (key === 'tanggal') {
     return (parseInt(r.tahun, 10) || 0) * 10000 + ((BULAN_ID.indexOf(r.bln) + 1) || 0) * 100 + (parseInt(r.tgl, 10) || 0);
   }
+  if (key === 'kua') return getKuaLabelForRecord_(r);
   return r[key];
 }
 
@@ -872,6 +1124,8 @@ function applyRiwayatFilters() {
   const q = document.getElementById('riwayat-search').value.trim().toLowerCase();
   const tahunFilter = document.getElementById('riwayat-filter-tahun').value;
   const bulanFilter = document.getElementById('riwayat-filter-bulan').value;
+  const kuaFilterEl = document.getElementById('riwayat-filter-kua');
+  const kuaFilter = kuaFilterEl ? kuaFilterEl.value : '';
 
   _riwayatFiltered = _riwayatCache.filter((r) => {
     if (tahunFilter && r.tahun !== tahunFilter) return false;
@@ -879,8 +1133,9 @@ function applyRiwayatFilters() {
       const targetMonth = (BULAN_ID[parseInt(bulanFilter, 10) - 1] || '').toUpperCase();
       if (!String(r.bln || '').toUpperCase().startsWith(targetMonth)) return false;
     }
+    if (kuaFilter && getKuaLabelForRecord_(r) !== kuaFilter) return false;
     if (q) {
-      const haystack = [r.noSurat, r.nomorUrut, r.pihakSatuNama, r.pihakKeduaNama, r.porporasi].join(' ').toLowerCase();
+      const haystack = [r.noSurat, r.nomorUrut, r.pihakSatuNama, r.pihakKeduaNama, r.porporasi, getKuaLabelForRecord_(r)].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -892,6 +1147,7 @@ function applyRiwayatFilters() {
 document.getElementById('riwayat-search').addEventListener('input', applyRiwayatFilters);
 document.getElementById('riwayat-filter-tahun').addEventListener('change', applyRiwayatFilters);
 document.getElementById('riwayat-filter-bulan').addEventListener('change', applyRiwayatFilters);
+document.getElementById('riwayat-filter-kua').addEventListener('change', applyRiwayatFilters);
 
 function renderRiwayatPage() {
   const activeKey = _riwayatSortKey || 'nomorUrut';
@@ -908,7 +1164,7 @@ function renderRiwayatPage() {
   const pageItems = _riwayatFiltered.slice(start, start + RIWAYAT_PAGE_SIZE);
 
   if (!pageItems.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty">Tidak ada Berita Acara yang cocok.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="table-empty">Tidak ada Berita Acara yang cocok.</div></td></tr>';
   } else {
     tbody.innerHTML = pageItems.map((r) => `
       <tr>
@@ -916,6 +1172,7 @@ function renderRiwayatPage() {
         <td>${escapeHtml(r.tgl)} ${escapeHtml(r.bln)} ${escapeHtml(r.tahun)}</td>
         <td>${escapeHtml(r.pihakSatuNama)}</td>
         <td>${escapeHtml(r.pihakKeduaNama)}</td>
+        <td><span class="badge">${escapeHtml(getKuaLabelForRecord_(r) || '-')}</span></td>
         <td class="mono">${escapeHtml(r.porporasi || '-')}</td>
         <td>${r.linkArsip ? '<span class="badge" style="background:var(--color-primary-tint); color:var(--color-primary-dark);">Ada</span>' : '<span class="badge">Belum</span>'}</td>
         <td>
@@ -924,6 +1181,7 @@ function renderRiwayatPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
             <button class="icon-btn icon-btn--danger" type="button" data-hapus="${escapeHtml(r.nomorUrut)}|${escapeHtml(r.tahun)}" aria-label="Hapus">
+
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
             </button>
           </div>
@@ -988,11 +1246,15 @@ function openDetailModal(nomorUrut, tahun) {
     escapeHtml(buildNomorSuratLengkap(r.nomorUrut, r.blnSrt, r.tahun));
 
   document.getElementById('detail-ba-pihak-satu').innerHTML =
-    escapeHtml(r.pihakSatuNama) + '<br>NIP. ' + escapeHtml(r.pihakSatuNip) + '<br>' +
-    escapeHtml(r.pihakSatuJabatan) + '<br>' + escapeHtml(r.pihakSatuAlamat);
+    '<strong>' + escapeHtml(r.pihakSatuNama) + '</strong><br>NIP. ' + escapeHtml(r.pihakSatuNip) + '<br>' +
+    escapeHtml(r.pihakSatuJabatan) + '<br>' +
+    '<span style="color:var(--color-text-faint);">Tempat Kerja: ' + escapeHtml(getTempatKerjaLabel_(r.pihakSatuNip, r.pihakSatuJabatan, 'Bimas Islam')) + '</span><br>' +
+    escapeHtml(resolveAlamatLengkapPihakSatu_(r));
   document.getElementById('detail-ba-pihak-kedua').innerHTML =
-    escapeHtml(r.pihakKeduaNama) + '<br>NIP. ' + escapeHtml(r.pihakKeduaNip) + '<br>' +
-    escapeHtml(r.pihakKeduaJabatan) + '<br>' + escapeHtml(r.pihakKeduaAlamat);
+    '<strong>' + escapeHtml(r.pihakKeduaNama) + '</strong><br>NIP. ' + escapeHtml(r.pihakKeduaNip) + '<br>' +
+    escapeHtml(r.pihakKeduaJabatan) + '<br>' +
+    '<span style="color:var(--color-text-faint);">Tempat Kerja: ' + escapeHtml(getTempatKerjaLabel_(r.pihakKeduaNip, r.pihakKeduaJabatan, 'KUA')) + '</span><br>' +
+    escapeHtml(resolveAlamatLengkapPihakKedua_(r));
   document.getElementById('detail-ba-sarana').innerHTML =
     'Buku NA: ' + escapeHtml(r.banyakNaBuku || '-') + ' &middot; N: ' + escapeHtml(r.banyakN || '-') +
     ' &middot; NB: ' + escapeHtml(r.banyakNb || '-') + '<br>Porporasi: ' + escapeHtml(r.porporasi || '-') +

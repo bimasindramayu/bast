@@ -150,7 +150,13 @@
           <div class="card">
             <div class="card__header"><div class="card__title">Pihak Pertama <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf Bimas Islam</span></div></div>
             <div class="field">
-              <label for="ba-pihak-satu">Pilih Pegawai</label>
+              <div class="field-label-row">
+                <label for="ba-pihak-satu">Pilih Pegawai</label>
+                <button type="button" class="link-action" id="btn-quick-add-satu">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                  Tambah Pegawai Baru
+                </button>
+              </div>
               <select id="ba-pihak-satu" required><option value="">— Pilih —</option></select>
             </div>
             <div class="form-grid">
@@ -163,9 +169,28 @@
 
           <div class="card">
             <div class="card__header"><div class="card__title">Pihak Kedua <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf KUA</span></div></div>
-            <div class="field">
-              <label for="ba-pihak-kedua">Pilih Pegawai</label>
-              <select id="ba-pihak-kedua" required><option value="">— Pilih —</option></select>
+            <div class="form-grid">
+              <div class="field">
+                <label for="ba-pihak-kedua-kua">KUA Kecamatan</label>
+                <select id="ba-pihak-kedua-kua"><option value="">— Pilih KUA —</option></select>
+                <div class="field-hint">Pilih KUA dulu untuk mempersempit daftar pegawai di bawah.</div>
+              </div>
+              <div class="field">
+                <div class="field-label-row">
+                  <label for="ba-pihak-kedua">Pilih Pegawai</label>
+                  <button type="button" class="link-action" id="btn-quick-add-kedua">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Tambah Pegawai Baru
+                  </button>
+                </div>
+                <select id="ba-pihak-kedua" required disabled><option value="">— Pilih KUA dahulu —</option></select>
+              </div>
+            </div>
+            <div class="inline-note inline-note--warning" id="ba-pihak-kedua-kosong" style="display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <span>Belum ada pegawai terdaftar untuk KUA <strong id="ba-pihak-kedua-kosong-nama"></strong>.
+                <button type="button" class="link-action" id="btn-quick-add-kedua-kosong" style="display:inline-flex; vertical-align:middle;">Tambah sekarang</button>
+              </span>
             </div>
             <div class="form-grid">
               <div class="field"><label>Nama</label><input type="text" id="ba-dua-nama" readonly /></div>
@@ -174,6 +199,7 @@
               <div class="field"><label>Alamat</label><input type="text" id="ba-dua-alamat" readonly /></div>
             </div>
           </div>
+
 
           <div class="card">
             <div class="card__header"><div class="card__title">Data Sarana</div></div>
@@ -241,9 +267,10 @@
           <div class="table-toolbar">
             <div class="search-input-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="text" id="riwayat-search" placeholder="Cari nomor, nama pihak..." />
+              <input type="text" id="riwayat-search" placeholder="Cari nomor, nama pihak, KUA..." />
             </div>
             <div style="display:flex; gap: var(--sp-2);">
+              <select id="riwayat-filter-kua" style="width:auto;"><option value="">Semua KUA</option></select>
               <select id="riwayat-filter-tahun" style="width:auto;"><option value="">Semua Tahun</option></select>
               <select id="riwayat-filter-bulan" style="width:auto;">
                 <option value="">Semua Bulan</option>
@@ -259,16 +286,18 @@
                   <th style="width:110px;" data-sort-key="tanggal">Tanggal</th>
                   <th data-sort-key="pihakSatuNama">Pihak Pertama</th>
                   <th data-sort-key="pihakKeduaNama">Pihak Kedua</th>
+                  <th style="width:120px;" data-sort-key="kua">KUA</th>
                   <th data-sort-key="porporasi">Porporasi</th>
                   <th style="width:80px;">Arsip</th>
                   <th style="width:130px;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="riwayat-tbody">
-                <tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
+                <tr><td colspan="8"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
               </tbody>
             </table>
           </div>
+
 
           <div class="table-toolbar" style="margin-top: var(--sp-3); margin-bottom:0;">
             <div id="riwayat-pagination-info" style="font-size: var(--fs-xs); color: var(--color-text-muted);"></div>
@@ -362,6 +391,11 @@
                 <input type="text" id="set-nomor-format" name="NOMOR_FORMAT_TEMPLATE" />
                 <div class="field-hint">Placeholder yang tersedia: {NOMOR}, {KODE_KANTOR}, {BULAN_ROMAWI}, {KODE_KLASIFIKASI}, {BULAN_ANGKA}, {TAHUN}</div>
               </div>
+              <div class="field field--full">
+                <label for="set-alamat-bimas-lengkap">Alamat Lengkap Kantor (Pihak Pertama)</label>
+                <input type="text" id="set-alamat-bimas-lengkap" name="ALAMAT_BIMAS_LENGKAP" />
+                <div class="field-hint">Dipakai di PDF &amp; detail Riwayat untuk Pihak Pertama, kalau Alamat pegawai yang tersimpan (biasanya dari data lama) belum menyebutkan Kecamatan/Kabupaten. Pastikan menyertakan keduanya — ubah di sini kalau kantornya pindah, tidak perlu mengedit tiap data pegawai.</div>
+              </div>
             </div>
             <p class="field-hint" style="margin-bottom: var(--sp-3);">ID Spreadsheet dan folder arsip Google Drive diatur langsung di <code>appscript/Code.gs</code> (bagian KONFIGURASI paling atas), bukan di sini.</p>
             <button type="submit" class="btn btn--primary" id="btn-simpan-pengaturan">Simpan Pengaturan</button>
@@ -440,6 +474,7 @@
         <div class="field">
           <label for="pegawai-alamat">Alamat</label>
           <input type="text" id="pegawai-alamat" required />
+          <div class="field-hint">Sertakan Kecamatan dan Kabupaten supaya tercetak lengkap di PDF (mis. "..., Kecamatan Anjatan, Kabupaten Indramayu").</div>
         </div>
       </div>
       <div class="modal__footer">

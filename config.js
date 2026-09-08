@@ -15,5 +15,5 @@
  * ============================================================================
  */
 const CONFIG = {
-  WEB_APP_URL: "https://script.google.com/macros/s/AKfycbxpSAtr92Y9jbRc-5ZISiHLp2tYLf9Y9XDmghhHyMgioTa5uI48XCGsfSu_jp0vVPvD/exec"
+  WEB_APP_URL: "https://script.google.com/macros/s/AKfycbw9UD2dgLQXwJ-swVB7cXie1vPjrTcbM9gOy1ZJo72fUIxK8CbTLxbKRWSOxg1O-BaB/exec"
 };

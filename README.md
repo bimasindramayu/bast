@@ -379,3 +379,72 @@ baris itu sendiri dari pengecekan duplikat/tumpang-tindih porporasi;
 `checkPorporasi()` di `Code.gs` sudah menerima parameter `excludeRowNum`
 untuk ini, tinggal disambungkan ke UI). Beri tahu kalau ini prioritas
 berikutnya, atau kalau ada penyesuaian lain dulu dari yang sudah berjalan.
+
+## Perbaikan UX (dari masukan pengguna, setelah Tahap 3)
+
+Lima temuan "kurang user friendly" berikut sudah diperbaiki:
+
+1. **Pihak Kedua: pilih KUA dulu, baru pegawainya.** Dropdown "Pilih
+   Pegawai" di kartu Pihak Kedua dulu langsung menampilkan SEMUA staf KUA
+   lintas 31 kecamatan sekaligus. Sekarang dipecah dua langkah — dropdown
+   "KUA Kecamatan" (`#ba-pihak-kedua-kua`, daftar tetap 31 KUA) dulu, baru
+   dropdown "Pilih Pegawai" (`#ba-pihak-kedua`, mulai kosong+nonaktif)
+   terisi staf KUA yang dipilih itu saja. Kalau KUA yang dipilih belum
+   punya pegawai terdaftar, muncul catatan singkat + tombol "Tambah
+   sekarang" (lihat poin 2). Pihak Pertama tidak diubah (staf Bimas Islam
+   jauh lebih sedikit, tidak perlu dipersempit).
+
+2. **Tambah pegawai baru tanpa pindah halaman.** Tombol "+ Tambah Pegawai
+   Baru" ditambahkan di kartu Pihak Pertama & Pihak Kedua pada form Buat
+   BA. Tombol ini membuka modal Pegawai yang sama seperti di halaman
+   Pegawai, tapi dengan Kategori sudah dipilihkan & dikunci sesuai sisi
+   yang sedang diisi (dan KUA ikut ter-prefill kalau di poin 1 sudah
+   dipilih), supaya pegawai barunya dijamin muncul di sisi yang benar.
+   Begitu disimpan, modal tertutup dan pegawai itu **langsung terpilih**
+   di dropdown yang sesuai — isian form Buat BA lain (tanggal, porporasi,
+   dst.) tidak tersentuh sama sekali karena tidak ada navigasi halaman.
+   Implementasi: `_pegawaiModalContext` di `script.js` menyimpan konteks
+   ini selama modal terbuka, dipakai oleh `applyPegawaiQuickAddSelection_()`
+   setelah simpan sukses.
+
+3. **Alamat Pihak Pertama & Kedua dicetak lengkap dengan Kecamatan +
+   Kabupaten.** Banyak data Pegawai (terutama hasil migrasi Master lama)
+   menyimpan Alamat versi pendek tanpa Kecamatan/Kabupaten. Daripada
+   mencetak field Alamat itu apa adanya, `pdf.js` dan modal Detail Riwayat
+   sekarang memanggil `resolveAlamatLengkapPihakSatu_()` /
+   `resolveAlamatLengkapPihakKedua_()` (di `script.js`):
+   - **Pihak Kedua** (staf KUA): diutamakan alamat RESMI dari `KUA_LIST`
+     (sudah pasti lengkap, sama seperti yang dipakai auto-isi form Tambah
+     Pegawai) berdasarkan KUA pegawainya — bukan teks Alamat lama yang
+     tersimpan. Kalau pegawainya sudah terlanjur dihapus dari Pegawai,
+     nama KUA ditebak dari teks Jabatan yang tersimpan di baris BA itu
+     sendiri (cara yang sama seperti `inferJabatanKua_()` di `Code.gs`
+     untuk membaca Master lama).
+   - **Pihak Pertama** (staf Bimas Islam): kalau Alamat yang tersimpan
+     belum menyebut Kecamatan+Kabupaten, dipakai setting BARU
+     **ALAMAT_BIMAS_LENGKAP** (halaman Pengaturan) sebagai gantinya.
+     Nilai defaultnya —
+     *"Jl. Olah Raga No. 03, Kelurahan Karanganyar, Kecamatan Indramayu,
+     Kabupaten Indramayu"* — sudah dicocokkan dengan alamat resmi di
+     situs kemenagindramayu.com, tapi **tolong dicek ulang** di halaman
+     Pengaturan siapa tahu kantornya sudah pindah; setting ini sengaja
+     dibuat bisa diubah lewat UI, bukan konstanta tertanam, supaya tidak
+     perlu edit kode kalau alamatnya berubah.
+
+   Setting baru ini otomatis ter-seed untuk instalasi yang SUDAH berjalan
+   lewat `ensureSettingDefaults_()` (dipanggil di `ensureBootstrapped_()`,
+   `Code.gs`) — cukup refresh halaman, tidak perlu migrasi manual apa pun.
+   Data Pegawai/Master itu sendiri tidak diubah oleh perbaikan ini —
+   murni cara cetak/tampil.
+
+4. **Modal Detail Riwayat menampilkan tempat kerja.** `#detail-ba-pihak-satu`
+   dan `#detail-ba-pihak-kedua` sekarang punya baris tambahan "Tempat
+   Kerja: Seksi Bimas Islam" / "Tempat Kerja: KUA Kecamatan {nama}",
+   dari `getTempatKerjaLabel_()` di `script.js` — memakai penelusuran
+   NIP yang sama seperti poin 3.
+
+5. **Kolom KUA di tabel Riwayat.** `#page-riwayat` sekarang punya kolom
+   "KUA" (bisa diurutkan, ikut kena kotak pencarian) di antara "Pihak
+   Kedua" dan "Porporasi", plus dropdown filter "Semua KUA" di sebelah
+   filter Tahun/Bulan yang sudah ada — supaya dari daftar saja sudah
+   kelihatan BA itu untuk KUA mana, tanpa perlu buka Detail satu-satu.
