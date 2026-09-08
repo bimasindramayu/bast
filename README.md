@@ -304,13 +304,39 @@ benar terhadap Spreadsheet Anda yang sesungguhnya.
   `appscript/Code.gs`** (bagian KONFIGURASI paling atas, satu tempat
   dengan `SPREADSHEET_ID`) — bukan lewat halaman Pengaturan, supaya semua
   identifier "sekali-set" terkumpul rapi di kode, bukan tersebar. Isi
-  dengan link atau ID folder Drive yang sudah Anda siapkan sendiri; folder
-  itu harus sudah bisa diakses akun yang men-deploy Web App ini. Kalau
-  dikosongkan, aplikasi otomatis membuat/memakai folder "Arsip Berita
-  Acara NR". **Sharing folder TIDAK diubah otomatis** oleh kode — kalau
-  staf lain perlu membuka link arsip, share folder tsb manual sekali lewat
-  Google Drive (klik kanan folder > Share), atau jalankan Apps Script-nya
-  dari akun Google Workspace kantor yang sudah dipakai bersama.
+  dengan link atau ID folder Drive yang sudah Anda siapkan sendiri (ini
+  jadi folder DASAR); folder itu harus sudah bisa diakses akun yang
+  men-deploy Web App ini. Kalau dikosongkan, aplikasi otomatis membuat/
+  memakai folder "Arsip Berita Acara NR" sebagai dasarnya. **Sharing
+  folder TIDAK diubah otomatis** oleh kode — kalau staf lain perlu membuka
+  link arsip, share folder tsb manual sekali lewat Google Drive (klik
+  kanan folder > Share), atau jalankan Apps Script-nya dari akun Google
+  Workspace kantor yang sudah dipakai bersama.
+- **Di dalam folder dasar itu, arsip diorganisir otomatis per Tahun >
+  Bulan** (mis. `2026/09 - September/`, angka bulan di depan supaya urut
+  kronologis saat dilihat di Drive, bukan alfabetis) — dibuat sesuai
+  tanggal pelaksanaan BA-nya, bukan tanggal upload. Nama filenya
+  `BAST KUA {nama KUA} - {nomor urut}-{tahun}.{ekstensi asli}`, mis.
+  `BAST KUA Patrol - 069-2026.pdf` — nama KUA diambil dari data Pegawai
+  Pihak Kedua saat itu (lihat [Kategori Pegawai](#) di atas).
+- **Arsip yang sudah diunggah bisa dihapus atau diganti** dari modal Lihat
+  Detail: tombol "hapus" menghapus file dari Drive + mengosongkan
+  `LINK_ARSIP`; mengunggah file baru pada baris yang sudah punya arsip
+  otomatis **menghapus dulu yang lama** sebelum menyimpan yang baru
+  (replace, bukan menumpuk berkas lama yang tidak terpakai).
+- **API Key Google Cloud (opsional) disimpan di `GOOGLE_DRIVE_API_KEY` pada
+  `appscript/Code.gs`**, sengaja BUKAN di `config.js` sisi frontend, supaya
+  tidak pernah ikut terkirim ke browser/terlihat di "View Source". Statusnya
+  jujur: **tidak dipakai kode manapun saat ini**, karena semua akses Drive
+  di project ini sudah lewat OAuth (`ScriptApp.getOAuthToken()`, lebih kuat
+  & sudah mencakup semuanya) — hanya ditaruh di sini supaya tersimpan rapi
+  di satu tempat kalau suatu saat dibutuhkan. `document-previewer.js`
+  sendiri punya jalur fallback yang memakai API key ini langsung dari
+  browser kalau `driveFetcher` kosong, tapi seperti sudah didokumentasikan
+  di komentar "FIX #23" pada file itu sendiri, jalur itu **selalu gagal
+  CORS** untuk mengambil isi file — karena itu, dan karena key ini sengaja
+  tidak dikirim ke client sama sekali, pratinjau arsip tetap memakai
+  `driveFetcher` (satu-satunya cara yang terbukti berhasil untuk kasus ini).
 - **PDF butuh koneksi internet** saat pertama kali dibuka — jsPDF & jsPDF-
   AutoTable dimuat lewat CDN, dengan **fallback otomatis dua penyedia**
   (cdnjs lalu jsdelivr) kalau salah satu diblokir jaringan. Setelah
@@ -337,6 +363,12 @@ benar terhadap Spreadsheet Anda yang sesungguhnya.
   hanya dicetak di baris pertama (nilainya satu untuk seluruh BA, bukan
   per komponen); "Pasang" selalu "-" karena tidak ada satu pun komponen
   yang datanya terpisah pasang/buku.
+- **Jabatan yang dicetak di PDF menyertakan unit kerjanya** — data Pegawai
+  menyimpan Jabatan bersih ("JFU") terpisah dari Kategori/KUA (perlu untuk
+  combobox & filter dropdown), tapi `pdf.js` merakitnya kembali khusus
+  untuk dicetak: "JFU Pada Seksi Bimas Islam" untuk Pihak Pertama, "JFU
+  Pada KUA {nama KUA}" untuk Pihak Kedua — persis format pada data lama.
+  Data Pegawai yang tersimpan sendiri tidak berubah, ini murni cara cetak.
 
 ## Yang sengaja ditunda: Edit Berita Acara
 

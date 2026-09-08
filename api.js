@@ -109,6 +109,7 @@ const Api = (() => {
     getBeritaAcara: () => get('getBeritaAcara'),
     deleteBeritaAcara: (nomorUrut, tahun) => post('deleteBeritaAcara', { nomorUrut, tahun }),
     uploadArsip: (data) => post('uploadArsip', data),
-    getArsipFileContent: (fileId) => get('getArsipFileContent', { fileId })
+    getArsipFileContent: (fileId) => get('getArsipFileContent', { fileId }),
+    deleteArsip: (nomorUrut, tahun) => post('deleteArsip', { nomorUrut, tahun })
   };
 })();

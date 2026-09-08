@@ -1009,11 +1009,34 @@ function openDetailModal(nomorUrut, tahun) {
       const label = 'BA ' + pad3(parseInt(r.nomorUrut, 10)) + '/' + r.tahun + ' — Arsip';
       documentPreviewer.open(r.linkArsip, label);
     };
+    document.getElementById('detail-ba-arsip-hapus').onclick = (e) => {
+      e.preventDefault();
+      handleHapusArsip(r);
+    };
   } else {
     existingEl.style.display = 'none';
   }
 
   openModal('modal-detail-ba');
+}
+
+function handleHapusArsip(r) {
+  confirmAction(
+    'Yakin ingin menghapus arsip Berita Acara Nomor ' + pad3(parseInt(r.nomorUrut, 10)) + '/' + r.tahun +
+    '? File di Google Drive akan ikut terhapus permanen.',
+    async () => {
+      try {
+        await Api.deleteArsip(r.nomorUrut, r.tahun);
+        toast('Arsip berhasil dihapus.');
+        r.linkArsip = ''; // objek yang sama persis dgn entri di _riwayatCache
+        document.getElementById('detail-ba-arsip-existing').style.display = 'none';
+        renderRiwayatPage();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    },
+    'Hapus Arsip'
+  );
 }
 
 document.getElementById('btn-detail-download-pdf').addEventListener('click', async () => {

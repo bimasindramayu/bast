@@ -519,6 +519,20 @@ td.mono, th.mono { font-family: var(--font-mono); font-variant-numeric: tabular-
   padding: var(--sp-4);
 }
 .modal-overlay.is-open { display: flex; }
+
+/* #modal-confirm dipakai ulang sebagai dialog konfirmasi di ATAS modal lain
+   (mis. dipanggil dari dalam #modal-detail-ba lewat tombol "hapus" arsip).
+   Tanpa ini, z-index-nya sama persis dengan .modal-overlay lain (100),
+   jadi urutannya di DOM-lah yang menentukan siapa tampil di atas — dan
+   karena #modal-detail-ba dideklarasikan SETELAH #modal-confirm di HTML,
+   modal konfirmasi jadi tertutup/tidak bisa diklik. Dibuat lebih tinggi
+   dari .modal-overlay biasa supaya SELALU tampil di atas, apa pun modal
+   yang memicunya & terlepas dari urutan di DOM. Tetap di bawah toast (200)
+   supaya notifikasi toast tetap terlihat di atas dialog konfirmasi.       */
+#modal-confirm {
+  z-index: 150;
+}
+
 .modal {
   background: var(--color-bg);
   border-radius: var(--radius-card);

@@ -74,6 +74,30 @@ const SPREADSHEET_ID = '';
 // "Arsip Berita Acara NR" secara otomatis.
 const ARSIP_FOLDER_ID = '';
 
+// API Key Google Cloud (opsional) — sengaja ditaruh DI SINI (server-side),
+// BUKAN di config.js sisi frontend, supaya tidak pernah ikut terkirim ke
+// browser/terlihat di "View Source" siapa pun yang membuka index.html.
+// CATATAN JUJUR soal statusnya saat ini: seluruh akses Drive di file ini
+// (unggah, cari folder, ambil isi file untuk pratinjau) sudah memakai
+// OAuth token akun yang men-deploy Web App (ScriptApp.getOAuthToken(),
+// lihat bagian ARSIP GOOGLE DRIVE) — itu lebih kuat daripada API key dan
+// sudah mencakup semua yang dibutuhkan, jadi key di bawah ini TIDAK
+// dipakai oleh kode manapun saat ini. Ditaruh di sini murni supaya
+// tersimpan rapi di satu tempat kalau suatu saat dibutuhkan (bukan
+// tersebar/hardcode di banyak tempat), TANPA membuka celah keamanan baru.
+//
+// Perlu diketahui: document-previewer.js sendiri punya jalur fallback yang
+// memakai googleDriveApiKey langsung dari BROWSER (client-side) kalau
+// driveFetcher tidak diisi — tapi seperti sudah didokumentasikan di
+// komentar "FIX #23" pada file itu sendiri, jalur itu SELALU gagal CORS
+// untuk mengambil ISI file (endpoint alt=media Drive API tidak mengirim
+// header CORS sama sekali, terlepas dari API key-nya benar atau salah).
+// Karena key ini sengaja tidak dikirim ke client sama sekali (itu tujuan
+// keamanannya), jalur fallback itu tidak bisa dipakai dari sini — pratinjau
+// arsip tetap memakai driveFetcher (lewat getArsipFileContent() di bawah),
+// yang memang satu-satunya cara yang terbukti berhasil untuk kasus ini.
+const GOOGLE_DRIVE_API_KEY = '';
+
 const SHEET_MASTER = 'Master';
 const SHEET_PEGAWAI = 'PEGAWAI';
 const SHEET_SETTING = 'SETTING';
@@ -207,6 +231,8 @@ function routeRequest_(action, params) {
         return jsonResponse_(true, 'Arsip berhasil diunggah.', uploadArsip(params));
       case 'getArsipFileContent':
         return jsonResponse_(true, '', getArsipFileContent(params));
+      case 'deleteArsip':
+        return jsonResponse_(true, 'Arsip berhasil dihapus.', deleteArsip(params));
       default:
         return jsonResponse_(false, 'Aksi tidak dikenal: "' + action + '".');
     }
@@ -1028,16 +1054,35 @@ function driveApiFindFolderByName_(name) {
   return (result.files && result.files.length) ? result.files[0].id : null;
 }
 
-function driveApiCreateFolder_(name) {
+function driveApiCreateFolder_(name, parentId) {
+  const metadata = { name: name, mimeType: 'application/vnd.google-apps.folder' };
+  if (parentId) metadata.parents = [parentId];
   const result = driveApiRequest_('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'post',
     contentType: 'application/json',
-    payload: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder' })
+    payload: JSON.stringify(metadata)
   });
   return result.id;
 }
 
-function getOrCreateArchiveFolderId_() {
+// Sama seperti driveApiFindFolderByName_, tapi dibatasi ke ANAK LANGSUNG
+// dari satu folder induk tertentu — dipakai untuk struktur Tahun/Bulan,
+// supaya "2026" di dalam folder arsip tidak ketuker dengan folder lain
+// yang kebetulan bernama sama di tempat lain pada Drive akun yang sama.
+function driveApiFindChildFolder_(parentId, name) {
+  const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = encodeURIComponent(
+    "name = '" + safeName + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and '" + parentId + "' in parents"
+  );
+  const result = driveApiRequest_('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name)&pageSize=1', { method: 'get' });
+  return (result.files && result.files.length) ? result.files[0].id : null;
+}
+
+function driveApiFindOrCreateChildFolder_(parentId, name) {
+  return driveApiFindChildFolder_(parentId, name) || driveApiCreateFolder_(name, parentId);
+}
+
+function getArchiveBaseFolderId_() {
   const configuredId = extractDriveFolderId_(ARSIP_FOLDER_ID);
   if (configuredId) {
     // Verifikasi folder itu benar ada & bisa diakses SEBELUM dipakai —
@@ -1048,6 +1093,62 @@ function getOrCreateArchiveFolderId_() {
   }
   const folderName = 'Arsip Berita Acara NR';
   return driveApiFindFolderByName_(folderName) || driveApiCreateFolder_(folderName);
+}
+
+const BULAN_LABEL_ = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+function pad2_(n) { return String(n).padStart(2, '0'); }
+
+// Toleran terhadap teks BLN yang tidak baku pada data lama (mis. "Januari
+// 2026" dengan tahun menyatu) — mencocokkan AWALAN teks terhadap daftar
+// nama bulan resmi, sama seperti pola yang sudah dipakai di getDashboard().
+function extractMonthNumber_(blnText) {
+  const upper = String(blnText || '').toUpperCase();
+  const idx = BULAN_NAMES_.findIndex(function (b) { return upper.indexOf(b) === 0; });
+  return idx >= 0 ? idx + 1 : null;
+}
+
+/**
+ * Folder arsip diorganisir Tahun > Bulan (format "09 - September" supaya
+ * urut kronologis, bukan alfabetis, saat dilihat di Drive) di dalam folder
+ * dasar (ARSIP_FOLDER_ID atau "Arsip Berita Acara NR" otomatis). Kalau
+ * nama bulan pada baris Master tidak baku dan tidak bisa dikenali sama
+ * sekali, dibuatkan folder "Lainnya" alih-alih gagal.
+ */
+function getArchiveSubfolderId_(tahun, blnText) {
+  const baseId = getArchiveBaseFolderId_();
+  const yearFolderId = driveApiFindOrCreateChildFolder_(baseId, String(tahun));
+  const monthNumber = extractMonthNumber_(blnText);
+  const monthLabel = monthNumber ? (pad2_(monthNumber) + ' - ' + BULAN_LABEL_[monthNumber - 1]) : 'Lainnya';
+  return driveApiFindOrCreateChildFolder_(yearFolderId, monthLabel);
+}
+
+function findPegawaiByNip_(nip) {
+  const target = String(nip || '').trim();
+  const list = getPegawai();
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].nip === target) return list[i];
+  }
+  return null;
+}
+
+function getFileExtension_(fileName) {
+  const str = String(fileName || '');
+  const idx = str.lastIndexOf('.');
+  return idx !== -1 ? str.substring(idx) : '';
+}
+
+// Menerima ID file Drive mentah ATAU link lengkap (/file/d/{id}/... atau
+// ?id={id}) dan mengembalikan ID-nya saja — dipakai saat menghapus/mengganti
+// arsip yang sebelumnya tersimpan sebagai URL lengkap di LINK_ARSIP.
+function extractDriveFileId_(url) {
+  const str = String(url || '').trim();
+  if (!str) return '';
+  let match = str.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  match = str.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : '';
 }
 
 function driveApiUploadFile_(folderId, fileName, mimeType, base64Data) {
@@ -1214,10 +1315,14 @@ function authorizeDriveAccess() {
 
 /**
  * Menerima file (dikirim sebagai base64 dari browser) dan mengunggahnya ke
- * folder arsip Drive lewat REST API, lalu menyimpan link-nya ke kolom
- * LINK_ARSIP pada baris Master yang sesuai. Ukuran file dibatasi ~15MB di
- * sisi klien (api.js) — batas payload Apps Script jauh di atas itu, ini
- * murni jaga-jaga supaya unggahan besar tidak terasa macet tanpa keterangan.
+ * folder arsip Drive lewat REST API (diorganisir Tahun > Bulan), dengan
+ * nama file "BAST KUA {nama KUA}", lalu menyimpan link-nya ke kolom
+ * LINK_ARSIP pada baris Master yang sesuai. Kalau baris itu sudah punya
+ * arsip sebelumnya, file LAMA dihapus dulu dari Drive (replace, bukan
+ * menumpuk) — pakai deleteArsip() secara terpisah kalau hanya ingin
+ * menghapus tanpa mengganti. Ukuran file dibatasi ~15MB di sisi klien
+ * (api.js) — batas payload Apps Script jauh di atas itu, ini murni jaga-
+ * jaga supaya unggahan besar tidak terasa macet tanpa keterangan.
  */
 function uploadArsip(payload) {
   const nomorUrut = payload.nomorUrut;
@@ -1235,18 +1340,76 @@ function uploadArsip(payload) {
   const rowNum = findMasterRow_(nomorUrut, tahun);
   if (rowNum === -1) throw new Error('Berita Acara Nomor ' + nomorUrut + '/' + tahun + ' tidak ditemukan. Muat ulang halaman Riwayat.');
 
-  const folderId = getOrCreateArchiveFolderId_();
-  const safeName = 'BA_' + pad3_(parseInt(nomorUrut, 10)) + '_' + tahun + '_' + fileName;
+  const masterSheet = getSheet_(SHEET_MASTER);
+  const rowData = masterSheet.getRange(rowNum, 1, 1, MASTER_COL.KASI_NIP).getValues()[0];
+  const bln = rowData[MASTER_COL.BLN - 1];
+  const pihakKeduaNip = rowData[MASTER_COL.PIHAK_KEDUA_NIP - 1];
+  const existingLink = masterSheet.getRange(rowNum, MASTER_COL.LINK_ARSIP).getValue();
+
+  // Sudah ada arsip sebelumnya di baris ini -> hapus dulu (replace, bukan menumpuk).
+  const existingFileId = extractDriveFileId_(existingLink);
+  if (existingFileId) {
+    try {
+      driveApiRequest_('https://www.googleapis.com/drive/v3/files/' + existingFileId, { method: 'delete' });
+    } catch (err) {
+      // Lanjut saja walau gagal (mis. file lama sudah dihapus manual dari Drive) —
+      // yang penting arsip baru tetap berhasil diunggah & tercatat.
+    }
+  }
+
+  const pegawaiKedua = findPegawaiByNip_(pihakKeduaNip);
+  const kuaLabel = (pegawaiKedua && pegawaiKedua.kua) ? pegawaiKedua.kua : 'KUA';
+
+  const folderId = getArchiveSubfolderId_(tahun, bln);
+  const safeName = 'BAST KUA ' + kuaLabel + ' - ' + pad3_(parseInt(nomorUrut, 10)) + '-' + tahun + getFileExtension_(fileName);
   const uploaded = driveApiUploadFile_(folderId, safeName, mimeType, base64Data);
   const fileUrl = uploaded.webViewLink || ('https://drive.google.com/file/d/' + uploaded.id + '/view');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    getSheet_(SHEET_MASTER).getRange(rowNum, MASTER_COL.LINK_ARSIP).setValue(fileUrl);
+    masterSheet.getRange(rowNum, MASTER_COL.LINK_ARSIP).setValue(fileUrl);
   } finally {
     lock.releaseLock();
   }
 
   return { fileUrl: fileUrl, fileName: safeName, fileId: uploaded.id };
+}
+
+/**
+ * Menghapus arsip yang sudah tersimpan (file di Drive + link di kolom
+ * LINK_ARSIP) TANPA menggantinya dengan yang baru — dipakai tombol "Hapus
+ * Arsip" di modal Lihat Detail. Kalau filenya ternyata sudah tidak ada di
+ * Drive (mis. dihapus manual sebelumnya), tetap lanjut membersihkan
+ * LINK_ARSIP di Master supaya tidak ada link mati yang nyangkut.
+ */
+function deleteArsip(payload) {
+  const nomorUrut = payload.nomorUrut;
+  const tahun = payload.tahun;
+  const rowNum = findMasterRow_(nomorUrut, tahun);
+  if (rowNum === -1) throw new Error('Berita Acara Nomor ' + nomorUrut + '/' + tahun + ' tidak ditemukan. Muat ulang halaman Riwayat.');
+
+  const sheet = getSheet_(SHEET_MASTER);
+  const currentLink = sheet.getRange(rowNum, MASTER_COL.LINK_ARSIP).getValue();
+  const fileId = extractDriveFileId_(currentLink);
+
+  if (!fileId) throw new Error('Baris ini belum punya arsip untuk dihapus.');
+
+  try {
+    driveApiRequest_('https://www.googleapis.com/drive/v3/files/' + fileId, { method: 'delete' });
+  } catch (err) {
+    // Lanjut membersihkan LINK_ARSIP walau penghapusan di Drive gagal
+    // (mis. filenya memang sudah tidak ada) — tidak ada gunanya menyimpan
+    // link yang sudah mati.
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    sheet.getRange(rowNum, MASTER_COL.LINK_ARSIP).setValue('');
+  } finally {
+    lock.releaseLock();
+  }
+
+  return { deleted: true };
 }

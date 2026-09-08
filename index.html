@@ -494,12 +494,13 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5"/></svg>
           <span>Sudah diarsipkan —
             <a href="#" id="detail-ba-arsip-preview">pratinjau</a> ·
-            <a id="detail-ba-arsip-link" href="#" target="_blank" rel="noopener">buka di Google Drive</a>
+            <a id="detail-ba-arsip-link" href="#" target="_blank" rel="noopener">buka di Google Drive</a> ·
+            <a href="#" id="detail-ba-arsip-hapus" style="color: var(--color-danger);">hapus</a>
           </span>
         </div>
       </div>
       <p style="font-size: var(--fs-xs); color: var(--color-text-muted); margin-bottom: var(--sp-2);">
-        Setelah dicetak dan ditandatangani semua pihak, unggah hasil scan-nya di sini (PDF atau foto/gambar, maks. 15MB). Mengunggah lagi akan menambah file baru, arsip sebelumnya tetap tersimpan di Drive.
+        Setelah dicetak dan ditandatangani semua pihak, unggah hasil scan-nya di sini (PDF atau foto/gambar, maks. 15MB). Kalau sudah ada arsip sebelumnya, mengunggah file baru akan <strong>menggantikannya</strong> (file lama otomatis terhapus dari Drive) — pakai "hapus" di atas kalau hanya ingin menghapus tanpa mengganti.
       </p>
       <input type="file" id="detail-ba-arsip-file" accept="application/pdf,image/*" style="margin-bottom: var(--sp-3); width:100%;" />
       <div id="detail-ba-upload-result"></div>

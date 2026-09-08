@@ -154,6 +154,40 @@ function pdfWriteFieldLine_(doc, label, value, x, y, labelWidth) {
   return y + 5;
 }
 
+// Data Pegawai menyimpan Jabatan bersih ("JFU") terpisah dari unit
+// kerjanya (Kategori/KUA) — pemisahan itu perlu untuk combobox & filter
+// dropdown, tapi dokumen resmi perlu mencetak keduanya sekaligus, persis
+// seperti data lama ("JFU Pada Seksi Bimas Islam"). Fungsi ini merakitnya
+// kembali KHUSUS untuk dicetak, tanpa mengubah data Pegawai yang tersimpan.
+//
+// PERBAIKAN BUG: sebagian data Jabatan (entri lama/migrasi atau yang
+// diketik manual) TERNYATA sudah menyertakan nama unit kerjanya sendiri,
+// mis. "Penghulu KUA Patrol" atau "JFU Pada Seksi Bimas Islam". Kalau
+// akhirannya ditempel begitu saja tanpa dicek, hasilnya dobel ("...Pada
+// Seksi Bimas Islam Pada Seksi Bimas Islam"). Jadi sebelum menempelkan
+// akhiran, cek dulu apakah teks jabatan SUDAH menyebut unit kerja terkait
+// — kalau sudah, biarkan apa adanya.
+function formatJabatanUntukCetak_(nip, jabatanMentah) {
+  const cache = (typeof _pegawaiCache !== 'undefined') ? _pegawaiCache : [];
+  const pegawai = cache.find((p) => p.nip === nip);
+  const jabatan = jabatanMentah || '-';
+  if (!pegawai) return jabatan;
+  const jabatanUpper = jabatan.toUpperCase();
+  if (pegawai.kategori === 'Bimas Islam') {
+    if (jabatanUpper.indexOf('BIMAS ISLAM') !== -1) return jabatan;
+    return jabatan + ' Pada Seksi Bimas Islam';
+  }
+  if (pegawai.kategori === 'KUA') {
+    const kua = pegawai.kua || '';
+    // Hanya cek nama kecamatan KUA-nya sendiri (bukan cek kata "KUA" secara
+    // umum) — supaya jabatan bersih yang memang mengandung kata "KUA" apa
+    // adanya (mis. "Operator KUA") tetap ditempeli lokasi seperti biasa.
+    if (kua && jabatanUpper.indexOf(kua.toUpperCase()) !== -1) return jabatan;
+    return jabatan + ' Pada KUA ' + kua;
+  }
+  return jabatan;
+}
+
 /**
  * record: objek dari Api.getBeritaAcara() (satu baris) — lihat bentuknya di
  * getBeritaAcara() pada Code.gs.
@@ -230,7 +264,7 @@ async function generateBeritaAcaraPdf(record) {
   // ---------------- PIHAK PERTAMA ----------------
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakSatuNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakSatuNip, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Jabatan', record.pihakSatuJabatan, marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakSatuNip, record.pihakSatuJabatan), marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakSatuAlamat, marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK PERTAMA :', marginLeft, y);
@@ -239,7 +273,7 @@ async function generateBeritaAcaraPdf(record) {
   // ---------------- PIHAK KEDUA ----------------
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakKeduaNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakKeduaNip, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Jabatan', record.pihakKeduaJabatan, marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakKeduaNip, record.pihakKeduaJabatan), marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakKeduaAlamat, marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK KEDUA .', marginLeft, y);
