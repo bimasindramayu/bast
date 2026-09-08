@@ -203,7 +203,7 @@ async function generateBeritaAcaraPdf(record) {
   const marginLeft = 20, marginRight = 20;
   const contentWidth = pageWidth - marginLeft - marginRight;
   const settings = _settingsCache || {};
-  let y = 12;
+  let y = 10;
 
   const logo = await loadLogoAsDataUrl_('assets/logo-kemenag.png');
 
