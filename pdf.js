@@ -203,39 +203,71 @@ async function generateBeritaAcaraPdf(record) {
   const marginLeft = 20, marginRight = 20;
   const contentWidth = pageWidth - marginLeft - marginRight;
   const settings = _settingsCache || {};
-  let y = 20;
+  let y = 12;
 
   const logo = await loadLogoAsDataUrl_('assets/logo-kemenag.png');
 
-  // ---------------- KOP SURAT ----------------
-  if (logo) {
-    // Dibatasi ke kotak maksimum (bukan cuma lebar tetap) — supaya logo
-    // beresolusi tinggi atau berproporsi tidak wajar dari file asli tidak
-    // pernah tampil kebesaran/tumpang tindih dengan teks kop surat.
-    const maxLogoW = 22, maxLogoH = 20;
-    let logoW = maxLogoW;
-    let logoH = logoW * (logo.height / logo.width);
-    if (logoH > maxLogoH) {
-      logoH = maxLogoH;
-      logoW = logoH * (logo.width / logo.height);
-    }
-    doc.addImage(logo.dataUrl, 'PNG', marginLeft, y - 3, logoW, logoH);
+// ---------------- KOP SURAT ----------------
+if (logo) {
+  const maxLogoW = 24, maxLogoH = 22;
+  let logoW = maxLogoW;
+  let logoH = logoW * (logo.height / logo.width);
+
+  if (logoH > maxLogoH) {
+    logoH = maxLogoH;
+    logoW = logoH * (logo.width / logo.height);
   }
-  doc.setFont('times', 'bold');
-  doc.setFontSize(11);
-  doc.text('KEMENTERIAN AGAMA REPUBLIK INDONESIA', pageWidth / 2, y, { align: 'center' });
-  y += 4.5;
-  doc.text('KANTOR KEMENTERIAN AGAMA KABUPATEN INDRAMAYU', pageWidth / 2, y, { align: 'center' });
-  y += 4.5;
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  doc.text('Jalan Olahraga Nomor 3 Indramayu 45213', pageWidth / 2, y, { align: 'center' });
-  y += 4;
-  doc.text('Telp. (0234) 272033, 272073, Faximile (0234) 272033', pageWidth / 2, y, { align: 'center' });
-  y += 4;
-  doc.setFont('times', 'bolditalic');
-  doc.text('Email : bimasindramayu@gmail.com', pageWidth / 2, y, { align: 'center' });
-  y += 3;
+
+  doc.addImage(logo.dataUrl, 'PNG', marginLeft, y - 3, logoW, logoH);
+}
+
+const headerX = pageWidth / 2 + 8;
+
+// Nama instansi
+doc.setFont('times', 'bold');
+doc.setFontSize(13);
+doc.text(
+  'KEMENTERIAN AGAMA REPUBLIK INDONESIA',
+  headerX, y,
+  { align: 'center' }
+);
+
+y += 5;
+doc.setFontSize(13);
+doc.text(
+  'KANTOR KEMENTERIAN AGAMA KABUPATEN INDRAMAYU',
+  headerX, y,
+  { align: 'center' }
+);
+
+// Alamat
+y += 5;
+doc.setFont('times', 'normal');
+doc.setFontSize(11);
+doc.text(
+  'Jalan Olahraga Nomor 3 Indramayu 45213',
+  headerX, y,
+  { align: 'center' }
+);
+
+y += 4.5;
+doc.text(
+  'Telp. (0234) 272033, 272073, Faximile (0234) 272033',
+  headerX, y,
+  { align: 'center' }
+);
+
+// Email
+y += 4.5;
+doc.setFont('times', 'bolditalic');
+doc.setFontSize(11);
+doc.text(
+  'Email : bimasindramayu@gmail.com',
+  headerX, y,
+  { align: 'center' }
+);
+
+y += 3;
 
   doc.setLineWidth(0.8);
   doc.line(marginLeft, y, pageWidth - marginRight, y);
