@@ -188,6 +188,36 @@ function formatJabatanUntukCetak_(nip, jabatanMentah) {
   return jabatan;
 }
 
+// Sama semangatnya dengan formatJabatanUntukCetak_ di atas: Alamat yang
+// tersimpan di data lama/entri manual kadang tidak lengkap (mis. "Jl. ...,
+// Indramayu" saja, tanpa nama Kecamatan & kata "Kabupaten"). Alamat di sini
+// memang alamat KANTOR/tempat kerja (bukan alamat pribadi — lihat juga
+// bagaimana pegawai-kua change handler & ALAMAT_BIMAS_DEFAULT di script.js
+// sama-sama memperlakukannya begitu), jadi kalau alamat mentah belum
+// menyebut KECAMATAN dan KABUPATEN sekaligus, dipakai alamat kantor resmi
+// dari KUA_LIST (Pihak KUA) atau ALAMAT_BIMAS_DEFAULT (Pihak Bimas Islam)
+// sebagai gantinya — supaya SEMUA dokumen menunjukkan alamat kantor yang
+// sama & lengkap, konsisten siapa pun pegawainya. Kalau alamat mentah SUDAH
+// lengkap, dibiarkan apa adanya (menghormati kalau memang sengaja beda,
+// mis. kantor sementara/pindah lokasi).
+function formatAlamatUntukCetak_(nip, alamatMentah) {
+  const cache = (typeof _pegawaiCache !== 'undefined') ? _pegawaiCache : [];
+  const pegawai = cache.find((p) => p.nip === nip);
+  const alamat = alamatMentah || '-';
+  if (!pegawai) return alamat;
+  const alamatUpper = alamat.toUpperCase();
+  const sudahLengkap = alamatUpper.indexOf('KECAMATAN') !== -1 && alamatUpper.indexOf('KABUPATEN') !== -1;
+  if (sudahLengkap) return alamat;
+  if (pegawai.kategori === 'KUA' && pegawai.kua && typeof KUA_LIST !== 'undefined') {
+    const kuaInfo = KUA_LIST.find((k) => k.nama === pegawai.kua);
+    if (kuaInfo && kuaInfo.alamat) return kuaInfo.alamat;
+  }
+  if (pegawai.kategori === 'Bimas Islam' && typeof ALAMAT_BIMAS_DEFAULT !== 'undefined' && ALAMAT_BIMAS_DEFAULT) {
+    return ALAMAT_BIMAS_DEFAULT;
+  }
+  return alamat;
+}
+
 /**
  * record: objek dari Api.getBeritaAcara() (satu baris) — lihat bentuknya di
  * getBeritaAcara() pada Code.gs.
@@ -203,71 +233,40 @@ async function generateBeritaAcaraPdf(record) {
   const marginLeft = 20, marginRight = 20;
   const contentWidth = pageWidth - marginLeft - marginRight;
   const settings = _settingsCache || {};
-  let y = 10;
+  let y = 12;
 
   const logo = await loadLogoAsDataUrl_('assets/logo-kemenag.png');
 
-// ---------------- KOP SURAT ----------------
-if (logo) {
-  const maxLogoW = 24, maxLogoH = 22;
-  let logoW = maxLogoW;
-  let logoH = logoW * (logo.height / logo.width);
-
-  if (logoH > maxLogoH) {
-    logoH = maxLogoH;
-    logoW = logoH * (logo.width / logo.height);
+  // ---------------- KOP SURAT ----------------
+  if (logo) {
+    // Dibatasi ke kotak maksimum (bukan cuma lebar tetap) — supaya logo
+    // beresolusi tinggi atau berproporsi tidak wajar dari file asli tidak
+    // pernah tampil kebesaran/tumpang tindih dengan teks kop surat.
+    const maxLogoW = 22, maxLogoH = 20;
+    let logoW = maxLogoW;
+    let logoH = logoW * (logo.height / logo.width);
+    if (logoH > maxLogoH) {
+      logoH = maxLogoH;
+      logoW = logoH * (logo.width / logo.height);
+    }
+    doc.addImage(logo.dataUrl, 'PNG', marginLeft, y - 3, logoW, logoH);
   }
-
-  doc.addImage(logo.dataUrl, 'PNG', marginLeft, y - 3, logoW, logoH);
-}
-
-const headerX = pageWidth / 2 + 8;
-
-// Nama instansi
-doc.setFont('times', 'bold');
-doc.setFontSize(13);
-doc.text(
-  'KEMENTERIAN AGAMA REPUBLIK INDONESIA',
-  headerX, y,
-  { align: 'center' }
-);
-
-y += 5;
-doc.setFontSize(13);
-doc.text(
-  'KANTOR KEMENTERIAN AGAMA KABUPATEN INDRAMAYU',
-  headerX, y,
-  { align: 'center' }
-);
-
-// Alamat
-y += 5;
-doc.setFont('times', 'normal');
-doc.setFontSize(11);
-doc.text(
-  'Jalan Olahraga Nomor 3 Indramayu 45213',
-  headerX, y,
-  { align: 'center' }
-);
-
-y += 4.5;
-doc.text(
-  'Telp. (0234) 272033, 272073, Faximile (0234) 272033',
-  headerX, y,
-  { align: 'center' }
-);
-
-// Email
-y += 4.5;
-doc.setFont('times', 'bolditalic');
-doc.setFontSize(11);
-doc.text(
-  'Email : bimasindramayu@gmail.com',
-  headerX, y,
-  { align: 'center' }
-);
-
-y += 3;
+  doc.setFont('times', 'bold');
+  doc.setFontSize(14);
+  doc.text('KEMENTERIAN AGAMA REPUBLIK INDONESIA', pageWidth / 2, y, { align: 'center' });
+  y += 5;
+  doc.setFontSize(12);
+  doc.text('KANTOR KEMENTERIAN AGAMA KABUPATEN INDRAMAYU', pageWidth / 2, y, { align: 'center' });
+  y += 5;
+  doc.setFont('times', 'normal');
+  doc.setFontSize(10);
+  doc.text('Jalan Olahraga Nomor 3 Indramayu 45213', pageWidth / 2, y, { align: 'center' });
+  y += 4;
+  doc.text('Telp. (0234) 272033, 272073, Faximile (0234) 272033', pageWidth / 2, y, { align: 'center' });
+  y += 4;
+  doc.setFont('times', 'bolditalic');
+  doc.text('Email : bimasindramayu@gmail.com', pageWidth / 2, y, { align: 'center' });
+  y += 3;
 
   doc.setLineWidth(0.8);
   doc.line(marginLeft, y, pageWidth - marginRight, y);
@@ -297,7 +296,7 @@ y += 3;
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakSatuNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakSatuNip, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakSatuNip, record.pihakSatuJabatan), marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakSatuAlamat, marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Alamat', formatAlamatUntukCetak_(record.pihakSatuNip, record.pihakSatuAlamat), marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK PERTAMA :', marginLeft, y);
   y += 7;
@@ -306,7 +305,7 @@ y += 3;
   y = pdfWriteFieldLine_(doc, 'Nama', record.pihakKeduaNama, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakKeduaNip, marginLeft, y, 22);
   y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakKeduaNip, record.pihakKeduaJabatan), marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Alamat', record.pihakKeduaAlamat, marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Alamat', formatAlamatUntukCetak_(record.pihakKeduaNip, record.pihakKeduaAlamat), marginLeft, y, 22);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK KEDUA .', marginLeft, y);
   y += 8;
@@ -395,7 +394,7 @@ y += 3;
   doc.text('Mengetahui,', pageWidth / 2, y, { align: 'center' });
   y += 5;
   doc.text('Kepala Seksi Bimas Islam,', pageWidth / 2, y, { align: 'center' });
-  y += 22;
+  y += 16;
   doc.setFont('times', 'bold');
   doc.text(String(record.kasiNama || ''), pageWidth / 2, y, { align: 'center' });
   y += 5;

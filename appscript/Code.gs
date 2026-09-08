@@ -134,7 +134,8 @@ const MASTER_COL = {
   NOMOR_PORPORASI_2: 25,  // selalu kosong di data yang diperiksa
   MENGETAHUI_KASI: 26,
   KASI_NIP: 27,
-  LINK_ARSIP: 28  // kolom baru: link Google Drive dokumen tertandatangan (lihat ensureMasterArsipColumn_)
+  LINK_ARSIP: 28, // kolom baru: link Google Drive dokumen tertandatangan (lihat ensureMasterArsipColumn_)
+  TGL_STOK_PINDAH: 29 // kolom baru: tanggal+jam stok buku ditandai sudah dipindahkan, '' = belum (lihat ensureMasterStokColumn_ & updateStokBuku)
 };
 
 const PEGAWAI_COL = { NIP: 1, NAMA: 2, KATEGORI: 3, JABATAN: 4, KUA: 5, ALAMAT: 6 };
@@ -160,7 +161,11 @@ const KUA_NAMES_ = [
   'Kedokan Bunder', 'Kertasemaya', 'Krangkeng', 'Kroya', 'Lelea', 'Lohbener', 'Losarang',
   'Pasekan', 'Patrol', 'Sindang', 'Sliyeg', 'Sukagumiwang', 'Sukra', 'Terisi', 'Tukdana', 'Widasari'
 ];
-const ALAMAT_BIMAS_DEFAULT_ = 'Jl. Olah Raga No. 03 Indramayu';
+// Kantor Bimas Islam (Kantor Kemenag Kabupaten Indramayu) ada di Kecamatan
+// Indramayu -- HARUS selalu sama persis dengan ALAMAT_BIMAS_DEFAULT di
+// script.js (dipakai formatAlamatUntukCetak_ di pdf.js supaya alamat yang
+// dicetak selalu lengkap Kecamatan+Kabupaten).
+const ALAMAT_BIMAS_DEFAULT_ = 'Jl. Olah Raga No. 03, Kecamatan Indramayu, Kabupaten Indramayu';
 
 const DEFAULT_SETTINGS = {
   APP_NAME: 'Berita Acara Serah Terima Sarana Administrasi NR',
@@ -233,6 +238,8 @@ function routeRequest_(action, params) {
         return jsonResponse_(true, '', getArsipFileContent(params));
       case 'deleteArsip':
         return jsonResponse_(true, 'Arsip berhasil dihapus.', deleteArsip(params));
+      case 'updateStokBuku':
+        return jsonResponse_(true, 'Status stok buku berhasil diperbarui.', updateStokBuku(params));
       default:
         return jsonResponse_(false, 'Aksi tidak dikenal: "' + action + '".');
     }
@@ -328,6 +335,7 @@ function ensureBootstrapped_() {
   const needsInit = !ss.getSheetByName(SHEET_PEGAWAI) || !ss.getSheetByName(SHEET_SETTING);
   if (needsInit) initializeDatabase();
   ensureMasterArsipColumn_();
+  ensureMasterStokColumn_();
 }
 
 // Kolom LINK_ARSIP (28) ditambahkan belakangan untuk fitur arsip Drive
@@ -345,6 +353,22 @@ function ensureMasterArsipColumn_() {
   } else if (current !== 'LINK_ARSIP') {
     throw new Error('Kolom ke-' + MASTER_COL.LINK_ARSIP + ' pada sheet Master sudah berisi header "' +
       current + '", bukan kosong — fitur arsip Drive tidak mengklaimnya secara otomatis. Beri tahu dulu supaya kolomnya disesuaikan.');
+  }
+}
+
+// Kolom TGL_STOK_PINDAH (29) ditambahkan belakangan untuk fitur pelacakan
+// status stok buku (Tahap 4) — persis pola yang sama dengan
+// ensureMasterArsipColumn_() di atas. Isinya tanggal+jam (teks) saat
+// ditandai "sudah dipindahkan" lewat updateStokBuku(), atau '' kalau belum.
+function ensureMasterStokColumn_() {
+  const sheet = getSheet_(SHEET_MASTER);
+  const headerCell = sheet.getRange(1, MASTER_COL.TGL_STOK_PINDAH);
+  const current = normalizeHeader_(headerCell.getValue());
+  if (!current) {
+    headerCell.setValue('TGL_STOK_PINDAH');
+  } else if (current !== 'TGL_STOK_PINDAH') {
+    throw new Error('Kolom ke-' + MASTER_COL.TGL_STOK_PINDAH + ' pada sheet Master sudah berisi header "' +
+      current + '", bukan kosong — fitur status stok buku tidak mengklaimnya secara otomatis. Beri tahu dulu supaya kolomnya disesuaikan.');
   }
 }
 
@@ -953,7 +977,8 @@ function getBeritaAcara() {
       porporasi: row[MASTER_COL.NOMOR_PORPORASI_1 - 1],
       kasiNama: row[MASTER_COL.MENGETAHUI_KASI - 1],
       kasiNip: row[MASTER_COL.KASI_NIP - 1],
-      linkArsip: row[MASTER_COL.LINK_ARSIP - 1] || ''
+      linkArsip: row[MASTER_COL.LINK_ARSIP - 1] || '',
+      tglStokPindah: row[MASTER_COL.TGL_STOK_PINDAH - 1] || ''
     });
   }
   return result;
@@ -1412,4 +1437,38 @@ function deleteArsip(payload) {
   }
 
   return { deleted: true };
+}
+
+/**
+ * Menyimpan status "stok buku sudah dipindahkan" untuk satu Berita Acara ke
+ * kolom TGL_STOK_PINDAH pada Master — dipakai tombol toggle di modal Lihat
+ * Detail pada Riwayat (Tahap 4). Diisi tanggal+jam saat ini kalau
+ * sudahDipindahkan true (sekaligus jadi jejak KAPAN dipindahkan, bukan
+ * sekadar Ya/Tidak), atau dikosongkan lagi kalau false (mis. keliru
+ * menandai, bisa dibatalkan).
+ * payload: { nomorUrut, tahun, sudahDipindahkan }
+ * Mengembalikan { tglStokPindah } — nilai baru kolom itu ('' kalau belum).
+ */
+function updateStokBuku(payload) {
+  const nomorUrut = payload.nomorUrut;
+  const tahun = payload.tahun;
+  const sudahDipindahkan = !!payload.sudahDipindahkan;
+  const rowNum = findMasterRow_(nomorUrut, tahun);
+  if (rowNum === -1) throw new Error('Berita Acara Nomor ' + nomorUrut + '/' + tahun + ' tidak ditemukan. Muat ulang halaman Riwayat.');
+
+  const stokSheet = getSheet_(SHEET_MASTER);
+  const stokLock = LockService.getScriptLock();
+  stokLock.waitLock(30000);
+  let nilaiBaru = '';
+  try {
+    nilaiBaru = sudahDipindahkan ? formatTanggalJamSekarang_() : '';
+    stokSheet.getRange(rowNum, MASTER_COL.TGL_STOK_PINDAH).setValue(nilaiBaru);
+  } finally {
+    stokLock.releaseLock();
+  }
+  return { tglStokPindah: nilaiBaru };
+}
+
+function formatTanggalJamSekarang_() {
+  return Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm');
 }

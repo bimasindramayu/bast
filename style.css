@@ -392,7 +392,8 @@ select:focus-visible,
   box-shadow: 0 0 0 3px var(--color-primary-tint);
 }
 .field input[readonly],
-.field input:disabled {
+.field input:disabled,
+.field select:disabled {
   background: var(--color-surface);
   color: var(--color-text-muted);
 }
@@ -401,6 +402,29 @@ select:focus-visible,
 .field-error { font-size: var(--fs-xs); color: var(--color-danger); margin-top: 4px; display: none; }
 .field.has-error input, .field.has-error select { border-color: var(--color-danger); }
 .field.has-error .field-error { display: block; }
+
+/* Baris label + aksi kecil di sampingnya, mis. label "Pilih Pegawai" +
+   tombol "+ Tambah pegawai baru" (lihat form Buat BA). */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.field-label-row label { margin-bottom: 6px; }
+
+.link-action {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.link-action:hover { color: var(--color-primary-dark); text-decoration: underline; }
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-4); }
 .form-grid .field--full { grid-column: 1 / -1; }

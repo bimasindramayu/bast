@@ -150,7 +150,10 @@
           <div class="card">
             <div class="card__header"><div class="card__title">Pihak Pertama <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf Bimas Islam</span></div></div>
             <div class="field">
-              <label for="ba-pihak-satu">Pilih Pegawai</label>
+              <div class="field-label-row">
+                <label for="ba-pihak-satu">Pilih Pegawai</label>
+                <button type="button" class="link-action" id="btn-tambah-pegawai-satu">+ Tambah pegawai baru</button>
+              </div>
               <select id="ba-pihak-satu" required><option value="">— Pilih —</option></select>
             </div>
             <div class="form-grid">
@@ -163,9 +166,19 @@
 
           <div class="card">
             <div class="card__header"><div class="card__title">Pihak Kedua <span style="font-weight:400; color:var(--color-text-muted); font-size:var(--fs-xs);">— Staf KUA</span></div></div>
-            <div class="field">
-              <label for="ba-pihak-kedua">Pilih Pegawai</label>
-              <select id="ba-pihak-kedua" required><option value="">— Pilih —</option></select>
+            <div class="form-grid">
+              <div class="field">
+                <label for="ba-pihak-kedua-kua">KUA Kecamatan</label>
+                <select id="ba-pihak-kedua-kua"></select>
+                <div class="field-hint">Pilih dulu supaya daftar pegawai di sebelah lebih singkat.</div>
+              </div>
+              <div class="field">
+                <div class="field-label-row">
+                  <label for="ba-pihak-kedua">Pilih Pegawai</label>
+                  <button type="button" class="link-action" id="btn-tambah-pegawai-kedua">+ Tambah pegawai baru</button>
+                </div>
+                <select id="ba-pihak-kedua" required disabled><option value="">— Pilih KUA dulu —</option></select>
+              </div>
             </div>
             <div class="form-grid">
               <div class="field"><label>Nama</label><input type="text" id="ba-dua-nama" readonly /></div>
@@ -259,13 +272,15 @@
                   <th style="width:110px;" data-sort-key="tanggal">Tanggal</th>
                   <th data-sort-key="pihakSatuNama">Pihak Pertama</th>
                   <th data-sort-key="pihakKeduaNama">Pihak Kedua</th>
+                  <th data-sort-key="kuaKedua" style="width:110px;">KUA</th>
                   <th data-sort-key="porporasi">Porporasi</th>
                   <th style="width:80px;">Arsip</th>
+                  <th style="width:96px;">Stok Buku</th>
                   <th style="width:130px;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="riwayat-tbody">
-                <tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
+                <tr><td colspan="9"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
               </tbody>
             </table>
           </div>
@@ -487,6 +502,10 @@
 
       <div class="divider-label">Data Sarana</div>
       <div id="detail-ba-sarana" style="font-size: var(--fs-sm); color: var(--color-text-muted);"></div>
+
+      <div class="divider-label">Status Stok Buku</div>
+      <div id="detail-ba-stok-status" style="font-size: var(--fs-sm); color: var(--color-text-muted); margin-bottom: var(--sp-3);"></div>
+      <button type="button" class="btn btn--sm" id="btn-toggle-stok-buku" style="margin-bottom: var(--sp-2);"></button>
 
       <div class="divider-label">Arsip Dokumen Tertandatangan</div>
       <div id="detail-ba-arsip-existing" style="display:none; margin-bottom: var(--sp-3);">

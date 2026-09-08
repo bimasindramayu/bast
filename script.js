@@ -45,7 +45,11 @@ const JABATAN_KUA = [
   'Pengadministrasi', 'Pengelola Umum Operasional', 'Penata Layanan Operasional',
   'Operator Layanan Operasional', 'Operator KUA', 'Tenaga Administrasi', 'Staf KUA', 'Honorer'
 ];
-const ALAMAT_BIMAS_DEFAULT = 'Jl. Olah Raga No. 03 Indramayu';
+// Kantor Bimas Islam (Kantor Kemenag Kabupaten Indramayu) ada di Kecamatan
+// Indramayu -- ditulis lengkap di sini (bukan cuma "...Indramayu" saja)
+// supaya konsisten dengan format alamat KUA_LIST di bawah & lengkap saat
+// dicetak (lihat formatAlamatUntukCetak_ di pdf.js).
+const ALAMAT_BIMAS_DEFAULT = 'Jl. Olah Raga No. 03, Kecamatan Indramayu, Kabupaten Indramayu';
 const KUA_LIST = [
   { nama: 'Anjatan', alamat: 'Jl. Raya Cilandak No. 31, Kecamatan Anjatan, Kabupaten Indramayu' },
   { nama: 'Arahan', alamat: 'Jl. Raya Cidempet, Kecamatan Arahan, Kabupaten Indramayu' },
@@ -88,6 +92,19 @@ function populateKuaSelect() {
     opt.textContent = k.nama;
     select.appendChild(opt);
   });
+}
+
+// Dipakai oleh dropdown "KUA Kecamatan" di form Buat BA (mempersempit
+// pilihan Pihak Kedua) — daftar KUA-nya tetap semua 31 kecamatan (bukan
+// cuma yang sudah punya pegawai), supaya BA untuk KUA yang pegawainya
+// belum terdaftar pun tetap bisa dipilih dulu unitnya, baru menambahkan
+// pegawainya lewat tombol "+ Tambah pegawai baru" di sebelahnya.
+function populateKuaFilterSelect(selectId) {
+  const select = document.getElementById(selectId);
+  const currentValue = select.value;
+  select.innerHTML = '<option value="">— Pilih KUA —</option>' +
+    KUA_LIST.map((k) => `<option value="${escapeHtml(k.nama)}">${escapeHtml(k.nama)}</option>`).join('');
+  select.value = currentValue;
 }
 
 function populateJabatanDatalist(kategori) {
@@ -372,7 +389,19 @@ document.getElementById('pegawai-search').addEventListener('input', (e) => {
   renderPegawaiTable(filtered);
 });
 
-function openAddPegawaiModal() {
+// Kalau modal Tambah Pegawai dibuka lewat tombol "+ Tambah pegawai baru" di
+// form Buat BA (bukan dari halaman Pegawai), _pegawaiModalContext menyimpan
+// ke dropdown mana pegawai yang baru saja disimpan nanti harus otomatis
+// dipilihkan (lihat submit handler #form-pegawai & terapkanPegawaiBaruKeFormBa_
+// di bawah) — supaya user TIDAK perlu pindah halaman & mencarinya lagi
+// secara manual di dropdown yang panjang.
+let _pegawaiModalContext = null;
+
+function openAddPegawaiModal(context) {
+  // context hanya valid kalau punya .target (mis. {target:'ba-pihak-satu',
+  // kategori:'Bimas Islam'}) — pengaman kalau fungsi ini terpasang langsung
+  // sebagai event handler di tempat lain (menerima MouseEvent, bukan context).
+  _pegawaiModalContext = (context && context.target) ? context : null;
   document.getElementById('modal-pegawai-title').textContent = 'Tambah Pegawai';
   document.getElementById('form-pegawai').reset();
   document.getElementById('pegawai-original-nip').value = '';
@@ -383,10 +412,21 @@ function openAddPegawaiModal() {
   document.getElementById('field-pegawai-kua').style.display = 'none';
   populateJabatanDatalist('');
   document.getElementById('pegawai-kategori-segmented').closest('.field').classList.remove('has-error');
+  // Dipanggil dari Buat BA -> langsung arahkan kategori (& KUA-nya kalau
+  // sudah dipilih di form) supaya user tinggal isi Nama/NIP/Jabatan/Alamat.
+  if (_pegawaiModalContext && _pegawaiModalContext.kategori) {
+    setPegawaiKategori(_pegawaiModalContext.kategori);
+    if (_pegawaiModalContext.kategori === 'KUA' && _pegawaiModalContext.kua) {
+      document.getElementById('pegawai-kua').value = _pegawaiModalContext.kua;
+      const kuaInfo = KUA_LIST.find((k) => k.nama === _pegawaiModalContext.kua);
+      if (kuaInfo) document.getElementById('pegawai-alamat').value = kuaInfo.alamat;
+    }
+  }
   openModal('modal-pegawai');
 }
 
 function openEditPegawaiModal(nip) {
+  _pegawaiModalContext = null; // edit selalu dari halaman Pegawai, bukan dari Buat BA
   const p = _pegawaiCache.find((x) => x.nip === nip);
   if (!p) return;
   document.getElementById('modal-pegawai-title').textContent = 'Ubah Pegawai';
@@ -401,7 +441,13 @@ function openEditPegawaiModal(nip) {
   openModal('modal-pegawai');
 }
 
-document.getElementById('btn-tambah-pegawai').addEventListener('click', openAddPegawaiModal);
+document.getElementById('btn-tambah-pegawai').addEventListener('click', () => openAddPegawaiModal());
+document.getElementById('btn-tambah-pegawai-satu').addEventListener('click', () => {
+  openAddPegawaiModal({ target: 'ba-pihak-satu', kategori: 'Bimas Islam' });
+});
+document.getElementById('btn-tambah-pegawai-kedua').addEventListener('click', () => {
+  openAddPegawaiModal({ target: 'ba-pihak-kedua', kategori: 'KUA', kua: document.getElementById('ba-pihak-kedua-kua').value });
+});
 
 function clearFieldError(inputId) {
   document.getElementById(inputId).closest('.field').classList.remove('has-error');
@@ -439,6 +485,9 @@ document.getElementById('form-pegawai').addEventListener('submit', async (e) => 
   }
   if (hasError) return;
 
+  // Konteks "kembali ke Buat BA" cuma relevan utk pegawai BARU, bukan edit.
+  const modalContext = originalNip ? null : _pegawaiModalContext;
+
   const btn = document.getElementById('btn-simpan-pegawai');
   setButtonLoading(btn, true, 'Menyimpan...');
   try {
@@ -448,17 +497,41 @@ document.getElementById('form-pegawai').addEventListener('submit', async (e) => 
       toast('Data pegawai berhasil diperbarui.');
     } else {
       await Api.savePegawai(payload);
-      toast('Pegawai baru berhasil ditambahkan.');
+      toast(modalContext ? 'Pegawai baru berhasil ditambahkan & langsung dipilih.' : 'Pegawai baru berhasil ditambahkan.');
     }
     closeModal('modal-pegawai');
     await loadPegawai();
     loadDashboard(); // total pegawai di dashboard ikut berubah
+    if (modalContext) terapkanPegawaiBaruKeFormBa_(modalContext, nip);
+    _pegawaiModalContext = null;
   } catch (err) {
     toast(err.message, 'error');
   } finally {
     setButtonLoading(btn, false);
   }
 });
+
+// Setelah pegawai baru ditambahkan lewat modal yang dibuka dari form Buat BA
+// (lihat openAddPegawaiModal & tombol btn-tambah-pegawai-satu/kedua di
+// atas), pilihkan otomatis pegawai tsb di dropdown Pihak terkait — kalau
+// Pihak Kedua, dropdown "KUA Kecamatan"-nya juga ikut disesuaikan dulu
+// (pakai KUA pegawai yang baru tersimpan, BUKAN cuma yang sempat dipilih
+// sebelum modal dibuka, supaya tetap benar walau user menggantinya di
+// dalam modal) baru dropdown pegawainya dipopulasi & dipilih.
+function terapkanPegawaiBaruKeFormBa_(context, nip) {
+  const p = _pegawaiCache.find((x) => x.nip === nip);
+  if (!p) return;
+  if (context.target === 'ba-pihak-satu') {
+    populatePihakDropdown('ba-pihak-satu', 'Bimas Islam');
+    document.getElementById('ba-pihak-satu').value = nip;
+    fillPihakDisplay('ba-satu', p);
+  } else if (context.target === 'ba-pihak-kedua') {
+    document.getElementById('ba-pihak-kedua-kua').value = p.kua || '';
+    populatePihakKeduaByKua_(p.kua || '', false);
+    document.getElementById('ba-pihak-kedua').value = nip;
+    fillPihakDisplay('ba-dua', p);
+  }
+}
 
 function handleDeletePegawai(nip) {
   const p = _pegawaiCache.find((x) => x.nip === nip);
@@ -565,8 +638,36 @@ function fillPihakDisplay(prefix, pegawai) {
   document.getElementById(prefix + '-alamat').value = pegawai ? pegawai.alamat : '';
 }
 
+// Mengisi ulang dropdown "Pilih Pegawai" utk Pihak Kedua, dipersempit ke
+// SATU KUA Kecamatan saja (dipilih lewat dropdown "KUA Kecamatan" di
+// sampingnya) — supaya user tidak perlu menyisir daftar semua pegawai KUA
+// se-Kabupaten setiap kali membuat BA. preserveSelection=true dipakai saat
+// halaman dimuat ulang (kembali dari halaman lain) supaya pilihan yang
+// sudah ada sebelumnya tidak hilang; false dipakai saat user SENGAJA
+// mengganti KUA-nya (pilihan lama sudah tidak relevan lagi).
+function populatePihakKeduaByKua_(kuaNama, preserveSelection) {
+  const select = document.getElementById('ba-pihak-kedua');
+  const currentValue = preserveSelection ? select.value : '';
+  if (!kuaNama) {
+    select.innerHTML = '<option value="">— Pilih KUA dulu —</option>';
+    select.disabled = true;
+    return;
+  }
+  const options = _pegawaiCache.filter((p) => p.kategori === 'KUA' && p.kua === kuaNama);
+  select.disabled = false;
+  select.innerHTML = options.length
+    ? '<option value="">— Pilih —</option>' +
+      options.map((p) => `<option value="${escapeHtml(p.nip)}">${escapeHtml(p.nama)} — ${escapeHtml(p.jabatan)}</option>`).join('')
+    : '<option value="">— Belum ada pegawai KUA ini —</option>';
+  if (options.some((p) => p.nip === currentValue)) select.value = currentValue;
+}
+
 document.getElementById('ba-pihak-satu').addEventListener('change', (e) => {
   fillPihakDisplay('ba-satu', _pegawaiCache.find((x) => x.nip === e.target.value));
+});
+document.getElementById('ba-pihak-kedua-kua').addEventListener('change', (e) => {
+  populatePihakKeduaByKua_(e.target.value, false);
+  fillPihakDisplay('ba-dua', null);
 });
 document.getElementById('ba-pihak-kedua').addEventListener('change', (e) => {
   fillPihakDisplay('ba-dua', _pegawaiCache.find((x) => x.nip === e.target.value));
@@ -687,6 +788,8 @@ function resetBuatBaForm() {
   document.getElementById('ba-bulan-surat').dataset.userChanged = '';
   fillPihakDisplay('ba-satu', null);
   fillPihakDisplay('ba-dua', null);
+  document.getElementById('ba-pihak-kedua-kua').value = '';
+  populatePihakKeduaByKua_('', false);
   document.getElementById('ba-porporasi-check-result').innerHTML = '';
   document.getElementById('ba-tanggal').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ba-auto-hitung').checked = true;
@@ -700,7 +803,10 @@ async function loadBuatBaPage() {
   await ensureSettingsCache();
 
   populatePihakDropdown('ba-pihak-satu', 'Bimas Islam');
-  populatePihakDropdown('ba-pihak-kedua', 'KUA');
+  if (!document.getElementById('ba-pihak-kedua-kua').options.length) {
+    populateKuaFilterSelect('ba-pihak-kedua-kua');
+  }
+  populatePihakKeduaByKua_(document.getElementById('ba-pihak-kedua-kua').value, true);
 
   document.getElementById('ba-kasi-nama-display').value = _settingsCache.KASI_NAMA || '(belum diatur)';
   document.getElementById('ba-kasi-nip-display').value = _settingsCache.KASI_NIP || '–';
@@ -813,17 +919,28 @@ const RIWAYAT_PAGE_SIZE = 15;
 
 async function loadRiwayat() {
   const tbody = document.getElementById('riwayat-tbody');
-  tbody.innerHTML = '<tr><td colspan="7"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="9"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>';
   try {
     await ensureSettingsCache(); // dibutuhkan untuk merakit Nomor Surat lengkap di tabel/detail/PDF
-    if (!_pegawaiLoadedOnce) await loadPegawai(); // dibutuhkan untuk mencetak Jabatan lengkap (unit kerja) di PDF
+    if (!_pegawaiLoadedOnce) await loadPegawai(); // dibutuhkan untuk mencetak Jabatan lengkap (unit kerja) di PDF, & utk kolom KUA di bawah
     const data = await Api.getBeritaAcara();
     _riwayatCache = data || [];
+    // Kolom "KUA" di tabel Riwayat butuh nama KUA Pihak Kedua, tapi Master
+    // tidak menyimpannya sebagai kolom terpisah (cuma Nama/NIP/Jabatan/
+    // Alamat) — jadi diturunkan di sini, SEKALI per baris, dengan mencocokkan
+    // pihakKeduaNip ke data Pegawai saat ini (sama seperti PDF mencocokkan
+    // NIP utk merakit Jabatan lengkap). Kalau pegawainya sudah tidak ada
+    // lagi di data Pegawai (mis. terhapus), kuaKedua dibiarkan '' (tampil
+    // sebagai "-"), bukan dianggap error.
+    _riwayatCache.forEach((r) => {
+      const p = _pegawaiCache.find((x) => x.nip === r.pihakKeduaNip);
+      r.kuaKedua = (p && p.kua) || '';
+    });
     _riwayatLoadedOnce = true;
     populateRiwayatFilters();
     applyRiwayatFilters();
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty">Gagal memuat: ' + escapeHtml(err.message) + '</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="table-empty">Gagal memuat: ' + escapeHtml(err.message) + '</div></td></tr>';
     toast(err.message, 'error');
   }
 }
@@ -880,7 +997,7 @@ function applyRiwayatFilters() {
       if (!String(r.bln || '').toUpperCase().startsWith(targetMonth)) return false;
     }
     if (q) {
-      const haystack = [r.noSurat, r.nomorUrut, r.pihakSatuNama, r.pihakKeduaNama, r.porporasi].join(' ').toLowerCase();
+      const haystack = [r.noSurat, r.nomorUrut, r.pihakSatuNama, r.pihakKeduaNama, r.kuaKedua, r.porporasi].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
@@ -908,7 +1025,7 @@ function renderRiwayatPage() {
   const pageItems = _riwayatFiltered.slice(start, start + RIWAYAT_PAGE_SIZE);
 
   if (!pageItems.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty">Tidak ada Berita Acara yang cocok.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9"><div class="table-empty">Tidak ada Berita Acara yang cocok.</div></td></tr>';
   } else {
     tbody.innerHTML = pageItems.map((r) => `
       <tr>
@@ -916,8 +1033,10 @@ function renderRiwayatPage() {
         <td>${escapeHtml(r.tgl)} ${escapeHtml(r.bln)} ${escapeHtml(r.tahun)}</td>
         <td>${escapeHtml(r.pihakSatuNama)}</td>
         <td>${escapeHtml(r.pihakKeduaNama)}</td>
+        <td>${escapeHtml(r.kuaKedua || '-')}</td>
         <td class="mono">${escapeHtml(r.porporasi || '-')}</td>
         <td>${r.linkArsip ? '<span class="badge" style="background:var(--color-primary-tint); color:var(--color-primary-dark);">Ada</span>' : '<span class="badge">Belum</span>'}</td>
+        <td>${r.tglStokPindah ? '<span class="badge" style="background:var(--color-primary-tint); color:var(--color-primary-dark);">Sudah</span>' : '<span class="badge">Belum</span>'}</td>
         <td>
           <div class="table-actions">
             <button class="icon-btn" type="button" data-lihat="${escapeHtml(r.nomorUrut)}|${escapeHtml(r.tahun)}" aria-label="Lihat">
@@ -977,6 +1096,20 @@ function handleDeleteBa(nomorUrut, tahun) {
   );
 }
 
+// Label "tempat kerja" (Seksi Bimas Islam / KUA X) dicocokkan lewat NIP ke
+// data Pegawai SAAT INI — dipakai di modal Detail BA supaya jelas terlihat
+// dimana pihak ybs bekerja, tanpa perlu menerka-nerka dari teks Jabatan.
+// Kalau pegawainya sudah tidak ada lagi di data Pegawai (mis. terhapus),
+// fallback '-': data Nama/NIP/Jabatan/Alamat yang tersimpan di BA itu
+// sendiri tetap utuh apa pun yang terjadi pada data Pegawai belakangan.
+function formatTempatKerja_(nip) {
+  const p = _pegawaiCache.find((x) => x.nip === nip);
+  if (!p) return '-';
+  if (p.kategori === 'Bimas Islam') return 'Seksi Bimas Islam';
+  if (p.kategori === 'KUA') return 'KUA ' + (p.kua || '(kecamatan tidak diketahui)');
+  return '-';
+}
+
 function openDetailModal(nomorUrut, tahun) {
   const r = _riwayatCache.find((x) => String(x.nomorUrut) === String(nomorUrut) && x.tahun === tahun);
   if (!r) return;
@@ -989,14 +1122,18 @@ function openDetailModal(nomorUrut, tahun) {
 
   document.getElementById('detail-ba-pihak-satu').innerHTML =
     escapeHtml(r.pihakSatuNama) + '<br>NIP. ' + escapeHtml(r.pihakSatuNip) + '<br>' +
-    escapeHtml(r.pihakSatuJabatan) + '<br>' + escapeHtml(r.pihakSatuAlamat);
+    escapeHtml(r.pihakSatuJabatan) + '<br>' + escapeHtml(r.pihakSatuAlamat) +
+    '<br><span style="color:var(--color-text-faint);">Tempat kerja: ' + escapeHtml(formatTempatKerja_(r.pihakSatuNip)) + '</span>';
   document.getElementById('detail-ba-pihak-kedua').innerHTML =
     escapeHtml(r.pihakKeduaNama) + '<br>NIP. ' + escapeHtml(r.pihakKeduaNip) + '<br>' +
-    escapeHtml(r.pihakKeduaJabatan) + '<br>' + escapeHtml(r.pihakKeduaAlamat);
+    escapeHtml(r.pihakKeduaJabatan) + '<br>' + escapeHtml(r.pihakKeduaAlamat) +
+    '<br><span style="color:var(--color-text-faint);">Tempat kerja: ' + escapeHtml(formatTempatKerja_(r.pihakKeduaNip)) + '</span>';
   document.getElementById('detail-ba-sarana').innerHTML =
     'Buku NA: ' + escapeHtml(r.banyakNaBuku || '-') + ' &middot; N: ' + escapeHtml(r.banyakN || '-') +
     ' &middot; NB: ' + escapeHtml(r.banyakNb || '-') + '<br>Porporasi: ' + escapeHtml(r.porporasi || '-') +
     (r.noSeri ? ' &middot; No. Seri: ' + escapeHtml(r.noSeri) : '');
+
+  renderDetailStokBuku_(r);
 
   document.getElementById('detail-ba-upload-result').innerHTML = '';
   document.getElementById('detail-ba-arsip-file').value = '';
@@ -1018,6 +1155,52 @@ function openDetailModal(nomorUrut, tahun) {
   }
 
   openModal('modal-detail-ba');
+}
+
+// Menampilkan status stok buku (sudah/belum dipindahkan) di modal Detail BA
+// & menyiapkan tombol togglenya. Dipanggil ulang setelah toggle berhasil
+// (lihat handleToggleStokBuku) supaya tampilannya langsung sinkron tanpa
+// perlu menutup-buka modal atau memuat ulang seluruh halaman.
+function renderDetailStokBuku_(r) {
+  const statusEl = document.getElementById('detail-ba-stok-status');
+  const btn = document.getElementById('btn-toggle-stok-buku');
+  if (r.tglStokPindah) {
+    statusEl.innerHTML = '<span class="badge" style="background:var(--color-primary-tint); color:var(--color-primary-dark);">Sudah dipindahkan</span> &middot; ' + escapeHtml(r.tglStokPindah);
+    btn.textContent = 'Tandai Belum Dipindahkan';
+    btn.className = 'btn btn--secondary btn--sm';
+  } else {
+    statusEl.innerHTML = '<span class="badge">Belum dipindahkan</span>';
+    btn.textContent = 'Tandai Sudah Dipindahkan';
+    btn.className = 'btn btn--primary btn--sm';
+  }
+  btn.onclick = () => handleToggleStokBuku(r);
+}
+
+// r di sini adalah OBJEK YANG SAMA persis dengan yang ada di dalam array
+// _riwayatCache (didapat lewat .find di openDetailModal) — jadi cukup
+// mengubah r.tglStokPindah di sini, baris tabel Riwayat (yang membaca dari
+// array yang sama) otomatis ikut ter-update begitu renderRiwayatPage()
+// dipanggil ulang, tanpa perlu memuat ulang seluruh data dari server.
+function handleToggleStokBuku(r) {
+  const akanDipindahkan = !r.tglStokPindah;
+  const btn = document.getElementById('btn-toggle-stok-buku');
+  setButtonLoading(btn, true, akanDipindahkan ? 'Menyimpan...' : 'Membatalkan...');
+  Api.updateStokBuku(r.nomorUrut, r.tahun, akanDipindahkan)
+    .then((result) => {
+      r.tglStokPindah = result.tglStokPindah || '';
+      renderRiwayatPage();
+      toast(akanDipindahkan ? 'Ditandai sudah dipindahkan.' : 'Ditandai belum dipindahkan.');
+    })
+    .catch((err) => toast(err.message, 'error'))
+    .finally(() => {
+      // setButtonLoading(false) mengembalikan HTML tombol ke kondisi SEBELUM
+      // diklik (lihat dataset.originalHtml di setButtonLoading) — jadi
+      // renderDetailStokBuku_ HARUS dipanggil SETELAHNYA, supaya label &
+      // status yang tampil akhir mengikuti state TERBARU (r.tglStokPindah),
+      // bukan tertimpa balik ke label lama oleh setButtonLoading.
+      setButtonLoading(btn, false);
+      renderDetailStokBuku_(r);
+    });
 }
 
 function handleHapusArsip(r) {
