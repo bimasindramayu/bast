@@ -448,3 +448,47 @@ Lima temuan "kurang user friendly" berikut sudah diperbaiki:
    Kedua" dan "Porporasi", plus dropdown filter "Semua KUA" di sebelah
    filter Tahun/Bulan yang sudah ada — supaya dari daftar saja sudah
    kelihatan BA itu untuk KUA mana, tanpa perlu buka Detail satu-satu.
+
+## Babak kedua perbaikan (status stok SIMKAH & rapikan bungkus PDF)
+
+6. **Status "sudah/belum dipindahkan ke SIMKAH" per Berita Acara.**
+   Kolom baru **STATUS_SIMKAH** (kolom ke-29) ditambahkan di Master —
+   diklaim otomatis lewat `ensureMasterStatusSimkahColumn_()` (dipanggil
+   di `ensureBootstrapped_()`, sama seperti pola `ensureMasterArsipColumn_`
+   untuk LINK_ARSIP), jadi tidak perlu migrasi manual untuk instalasi yang
+   sudah berjalan.
+   - **Buat BA**: kartu "Data Sarana" punya toggle "Status Stok SIMKAH"
+     (Belum Dipindahkan / Sudah Dipindahkan), **default-nya selalu
+     "Belum"** setiap BA baru dibuat — sesuai permintaan, karena
+     pemindahan ke SIMKAH lazimnya memang baru dilakukan belakangan,
+     terpisah dari waktu BA fisiknya dibuat/ditandatangani.
+   - **Riwayat**: kolom "SIMKAH" baru (bisa diurutkan & difilter lewat
+     dropdown "Semua Status SIMKAH" di sebelah filter KUA) menampilkan
+     badge status — di tabel ini badge-nya **hanya tampilan, tidak bisa
+     diklik**. Penggantian status **sengaja dibatasi hanya lewat modal
+     Detail** (`#modal-detail-ba`, bagian "Status Stok SIMKAH"), dan
+     selalu lewat **dialog konfirmasi** (`confirmAction()`, dialog yang
+     sama dipakai untuk konfirmasi hapus BA/arsip) sebelum benar-benar
+     tersimpan — tidak langsung berubah begitu diklik. Endpoint baru
+     `updateStatusSimkah` (`Code.gs`, dipanggil lewat
+     `Api.updateStatusSimkah()`) meng-update satu sel itu saja — tidak
+     menyentuh kolom Master lain.
+   - Baris Master yang **sudah ada dari sebelum kolom ini ditambahkan**
+     otomatis terbaca "Belum" oleh `getBeritaAcara()` (sel kosong →
+     default "Belum"), jadi tidak ada data lama yang perlu diisi manual
+     dulu supaya kolom/badge-nya tampil benar.
+
+7. **Baris Alamat pada PDF sekarang membungkus rapi di batas kanan yang
+   sama dengan teks lain.** Setelah perbaikan poin 3 di atas membuat
+   Alamat mencantumkan Kecamatan+Kabupaten (jadi lebih panjang),
+   `pdfWriteFieldLine_()` di `pdf.js` ternyata tidak pernah membungkus
+   teks sama sekali (`doc.text(nilai, x, y)` tanpa `maxWidth`) — nilai
+   yang panjang jadi meluber melewati batas kanan yang dipakai paragraf
+   lain di halaman yang sama, alih-alih berhenti sejajar dengannya.
+   Sudah diperbaiki dengan `doc.splitTextToSize()` (persis seperti yang
+   sudah dipakai `pdfWriteWrapped_()` untuk paragraf Pembuka/Penutup) —
+   sekarang nilai yang panjang membungkus ke baris berikutnya, RATA
+   dengan awal Nilai (bukan rata Label), dan berhenti tepat di batas
+   kanan (`pageWidth - marginRight`) yang sama dipakai teks lain di
+   dokumen. Diverifikasi dengan render PDF sungguhan (bukan cuma baca
+   kode) sebelum dianggap selesai.

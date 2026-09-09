@@ -146,12 +146,29 @@ function pdfWriteWrapped_(doc, text, x, y, maxWidth, lineHeight) {
 }
 
 // Menulis baris "Label : Nilai" sejajar kolon, meniru gaya contoh dokumen
-// ("Nama : TIEN JUNIARSIH", "NIP. : 197906...").
-function pdfWriteFieldLine_(doc, label, value, x, y, labelWidth) {
+// ("Nama : TIEN JUNIARSIH", "NIP. : 197906..."). Kalau Nilai lebih panjang
+// dari sisa ruang sampai maxRightX, dibungkus ke baris berikutnya — baris
+// lanjutan tetap RATA dengan awal Nilai (bukan rata Label), dan berhenti
+// TEPAT di maxRightX yang sama dipakai teks lain di dokumen ini (lihat
+// pdfWriteWrapped_ untuk paragraf Pembuka/Penutup, dipanggil dengan batas
+// kanan yang sama: pageWidth - marginRight).
+//
+// PERBAIKAN BUG: sebelum ini, fungsi hanya doc.text(nilai, x, y) tanpa
+// maxWidth sama sekali — aman selama Nilai selalu pendek, tapi begitu
+// Alamat mulai mencantumkan Kecamatan+Kabupaten (lihat
+// resolveAlamatLengkapPihak...()), banyak Alamat jadi cukup panjang untuk
+// meluber melewati batas kanan yang dipakai paragraf lain di halaman yang
+// sama, membuat baris Alamat terlihat "nyeberang" / tidak sejajar dengan
+// sisa dokumen. splitTextToSize() dulu sebelum ditulis (persis seperti
+// pdfWriteWrapped_) memastikan baris SELALU berhenti di batas yang sama.
+function pdfWriteFieldLine_(doc, label, value, x, y, labelWidth, maxRightX) {
+  const valueX = x + labelWidth + 3;
   doc.text(label, x, y);
   doc.text(':', x + labelWidth, y);
-  doc.text(String(value === undefined || value === null || value === '' ? '-' : value), x + labelWidth + 3, y);
-  return y + 5;
+  const text = String(value === undefined || value === null || value === '' ? '-' : value);
+  const lines = doc.splitTextToSize(text, maxRightX - valueX);
+  doc.text(lines, valueX, y);
+  return y + lines.length * 5;
 }
 
 // Data Pegawai menyimpan Jabatan bersih ("JFU") terpisah dari unit
@@ -203,7 +220,7 @@ async function generateBeritaAcaraPdf(record) {
   const marginLeft = 20, marginRight = 20;
   const contentWidth = pageWidth - marginLeft - marginRight;
   const settings = _settingsCache || {};
-  let y = 12;
+  let y = 10;
 
   const logo = await loadLogoAsDataUrl_('assets/logo-kemenag.png');
 
@@ -280,7 +297,7 @@ y += 3;
   const nomorLengkap = buildNomorSuratLengkap(record.nomorUrut, record.blnSrt, record.tahun, settings);
   doc.setFont('times', 'bolditalic');
   doc.setFontSize(14);
-  doc.text('BERITA  ACARA SERAH TERIMA SARANA ADMINISTRASI NR', pageWidth / 2, y, { align: 'center' });
+  doc.text('BERITA ACARA SERAH TERIMA SARANA ADMINISTRASI NR', pageWidth / 2, y, { align: 'center' });
   y += 5.5;
   doc.setFontSize(12);
   doc.text('NOMOR : ' + nomorLengkap, pageWidth / 2, y, { align: 'center' });
@@ -294,27 +311,28 @@ y += 3;
   y = pdfWriteWrapped_(doc, pembuka, marginLeft, y, contentWidth, 5) + 3;
 
   // ---------------- PIHAK PERTAMA ----------------
-  y = pdfWriteFieldLine_(doc, 'Nama', record.pihakSatuNama, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakSatuNip, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakSatuNip, record.pihakSatuJabatan), marginLeft, y, 22);
+  const fieldMaxRightX = pageWidth - marginRight; // batas kanan yang sama dipakai pdfWriteWrapped_ di atas & bawah
+  y = pdfWriteFieldLine_(doc, 'Nama', record.pihakSatuNama, marginLeft, y, 22, fieldMaxRightX);
+  y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakSatuNip, marginLeft, y, 22, fieldMaxRightX);
+  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakSatuNip, record.pihakSatuJabatan), marginLeft, y, 22, fieldMaxRightX);
   // Alamat dirakit lewat resolveAlamatLengkapPihakSatu_() (script.js), BUKAN
   // langsung record.pihakSatuAlamat — supaya PASTI menyertakan Kecamatan &
   // Kabupaten walau data pegawai yang tersimpan (banyak berasal dari migrasi
   // Master lama) masih versi pendek. Lihat komentar lengkap di script.js.
-  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakSatu_(record), marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakSatu_(record), marginLeft, y, 22, fieldMaxRightX);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK PERTAMA :', marginLeft, y);
   y += 7;
 
   // ---------------- PIHAK KEDUA ----------------
-  y = pdfWriteFieldLine_(doc, 'Nama', record.pihakKeduaNama, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakKeduaNip, marginLeft, y, 22);
-  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakKeduaNip, record.pihakKeduaJabatan), marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Nama', record.pihakKeduaNama, marginLeft, y, 22, fieldMaxRightX);
+  y = pdfWriteFieldLine_(doc, 'NIP.', record.pihakKeduaNip, marginLeft, y, 22, fieldMaxRightX);
+  y = pdfWriteFieldLine_(doc, 'Jabatan', formatJabatanUntukCetak_(record.pihakKeduaNip, record.pihakKeduaJabatan), marginLeft, y, 22, fieldMaxRightX);
   // Sama seperti Pihak Pertama di atas — resolveAlamatLengkapPihakKedua_()
   // mengutamakan alamat resmi dari KUA_LIST (sudah pasti lengkap dengan
   // Kecamatan+Kabupaten) berdasarkan KUA pegawainya, bukan teks Alamat lama
   // yang tersimpan apa adanya.
-  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakKedua_(record), marginLeft, y, 22);
+  y = pdfWriteFieldLine_(doc, 'Alamat', resolveAlamatLengkapPihakKedua_(record), marginLeft, y, 22, fieldMaxRightX);
   y += 3;
   doc.text('SELANJUTNYA DISEBUT PIHAK KEDUA .', marginLeft, y);
   y += 8;

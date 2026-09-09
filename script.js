@@ -851,6 +851,14 @@ function resetBuatBaForm() {
   document.getElementById('ba-tanggal').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ba-auto-hitung').checked = true;
   document.getElementById('ba-na-buku').readOnly = true;
+  // form.reset() mengembalikan hidden input #ba-status-simkah ke value HTML
+  // aslinya ("Belum", sudah benar) tapi tidak menyentuh class .is-active pada
+  // tombol segmented-nya (bukan elemen form biasa) — jadi tombolnya perlu
+  // disamakan lagi secara manual supaya tampilannya tidak "nyangkut" di
+  // pilihan terakhir sebelum form dibersihkan.
+  document.querySelectorAll('#ba-status-simkah-segmented .segmented__option').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.value === 'Belum');
+  });
   updateTanggalSummaryAndPreview();
 }
 document.getElementById('btn-reset-ba').addEventListener('click', resetBuatBaForm);
@@ -917,6 +925,7 @@ document.getElementById('form-buat-ba').addEventListener('submit', async (e) => 
     porporasiAwal: awal,
     porporasiAkhir: akhir,
     noSeri: document.getElementById('ba-no-seri').value.trim(),
+    statusSimkah: document.getElementById('ba-status-simkah').value,
     kasiNama: (_settingsCache && _settingsCache.KASI_NAMA) || '',
     kasiNip: (_settingsCache && _settingsCache.KASI_NIP) || ''
   };
@@ -935,6 +944,18 @@ document.getElementById('form-buat-ba').addEventListener('submit', async (e) => 
   } finally {
     setButtonLoading(btn, false);
   }
+});
+
+// Toggle segmented "Status Stok SIMKAH" — pola sama seperti segmented
+// Kategori di modal Pegawai, tapi lebih sederhana (tidak ada efek samping
+// lain selain menyimpan nilainya sendiri di #ba-status-simkah).
+document.querySelectorAll('#ba-status-simkah-segmented .segmented__option').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.getElementById('ba-status-simkah').value = btn.dataset.value;
+    document.querySelectorAll('#ba-status-simkah-segmented .segmented__option').forEach((b) => {
+      b.classList.toggle('is-active', b === btn);
+    });
+  });
 });
 
 // ============================================================================
@@ -1126,6 +1147,8 @@ function applyRiwayatFilters() {
   const bulanFilter = document.getElementById('riwayat-filter-bulan').value;
   const kuaFilterEl = document.getElementById('riwayat-filter-kua');
   const kuaFilter = kuaFilterEl ? kuaFilterEl.value : '';
+  const simkahFilterEl = document.getElementById('riwayat-filter-simkah');
+  const simkahFilter = simkahFilterEl ? simkahFilterEl.value : '';
 
   _riwayatFiltered = _riwayatCache.filter((r) => {
     if (tahunFilter && r.tahun !== tahunFilter) return false;
@@ -1134,6 +1157,7 @@ function applyRiwayatFilters() {
       if (!String(r.bln || '').toUpperCase().startsWith(targetMonth)) return false;
     }
     if (kuaFilter && getKuaLabelForRecord_(r) !== kuaFilter) return false;
+    if (simkahFilter && r.statusSimkah !== simkahFilter) return false;
     if (q) {
       const haystack = [r.noSurat, r.nomorUrut, r.pihakSatuNama, r.pihakKeduaNama, r.porporasi, getKuaLabelForRecord_(r)].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
@@ -1148,6 +1172,82 @@ document.getElementById('riwayat-search').addEventListener('input', applyRiwayat
 document.getElementById('riwayat-filter-tahun').addEventListener('change', applyRiwayatFilters);
 document.getElementById('riwayat-filter-bulan').addEventListener('change', applyRiwayatFilters);
 document.getElementById('riwayat-filter-kua').addEventListener('change', applyRiwayatFilters);
+document.getElementById('riwayat-filter-simkah').addEventListener('change', applyRiwayatFilters);
+
+// Badge status SIMKAH. Dipakai di DUA tempat dengan perilaku BERBEDA:
+// - Tabel Riwayat: clickable=false -> <span> biasa, sekadar tampilan,
+//   TIDAK bisa diklik (penggantian status sengaja tidak diizinkan dari
+//   sini, hanya dari modal Detail — lihat renderDetailStatusSimkah_).
+// - Modal Detail (#modal-detail-ba): clickable=true -> <button> yang
+//   memicu handleToggleStatusSimkah() (dengan konfirmasi) saat diklik.
+function simkahBadgeHtml_(r, clickable) {
+  const isSudah = r.statusSimkah === 'Sudah';
+  const style = isSudah
+    ? 'background:var(--color-primary-tint); color:var(--color-primary-dark);'
+    : 'background:var(--color-warning-tint); color:var(--color-warning);';
+  if (!clickable) {
+    return `<span class="badge" style="${style}">${escapeHtml(r.statusSimkah)}</span>`;
+  }
+  const title = isSudah ? 'Klik untuk tandai Belum dipindahkan' : 'Klik untuk tandai Sudah dipindahkan';
+  return `<button type="button" class="badge badge--clickable" style="${style}" ` +
+    `data-toggle-simkah="${escapeHtml(r.nomorUrut)}|${escapeHtml(r.tahun)}|${escapeHtml(r.statusSimkah)}" title="${escapeHtml(title)}">` +
+    `${escapeHtml(r.statusSimkah)}</button>`;
+}
+
+// Membalik status SIMKAH satu BA — SELALU lewat konfirmasi dulu (dipanggil
+// hanya dari badge di modal Detail, lihat komentar simkahBadgeHtml_ di
+// atas). Setelah dikonfirmasi & sukses, _riwayatCache diperbarui LANGSUNG
+// di memori (tidak perlu getBeritaAcara() ulang lewat jaringan) supaya
+// tabel & modal Detail yang sedang terbuka langsung ikut ter-refresh.
+function handleToggleStatusSimkah(nomorUrut, tahun, currentStatus) {
+  const newStatus = currentStatus === 'Sudah' ? 'Belum' : 'Sudah';
+  const labelNomor = 'Nomor ' + pad3(parseInt(nomorUrut, 10)) + '/' + tahun;
+  const message = newStatus === 'Sudah'
+    ? 'Tandai stok buku pada Berita Acara ' + labelNomor + ' sebagai SUDAH dipindahkan ke SIMKAH?'
+    : 'Kembalikan status Berita Acara ' + labelNomor + ' menjadi BELUM dipindahkan ke SIMKAH?';
+
+  confirmAction(message, async () => {
+    try {
+      await Api.updateStatusSimkah(nomorUrut, tahun, newStatus);
+      const cached = _riwayatCache.find((x) => String(x.nomorUrut) === String(nomorUrut) && String(x.tahun) === String(tahun));
+      if (cached) cached.statusSimkah = newStatus;
+      renderRiwayatPage();
+      if (_riwayatCurrentDetail && String(_riwayatCurrentDetail.nomorUrut) === String(nomorUrut) && String(_riwayatCurrentDetail.tahun) === String(tahun)) {
+        _riwayatCurrentDetail.statusSimkah = newStatus;
+        renderDetailStatusSimkah_(_riwayatCurrentDetail);
+      }
+      toast(newStatus === 'Sudah' ? 'Ditandai sudah dipindahkan ke SIMKAH.' : 'Ditandai belum dipindahkan ke SIMKAH.');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }, 'Ubah Status SIMKAH');
+}
+
+// Menyambungkan klik pada badge [data-toggle-simkah] di dalam sebuah
+// container ke handleToggleStatusSimkah(). Sengaja HANYA dipanggil untuk
+// container di dalam #modal-detail-ba (lihat renderDetailStatusSimkah_
+// di bawah) — penggantian status memang dibatasi hanya bisa lewat modal
+// Detail, bukan langsung dari tabel Riwayat (badge di tabel dirender
+// non-klik lewat simkahBadgeHtml_(r, false), lihat renderRiwayatPage).
+function wireSimkahToggleButtons_(container) {
+  container.querySelectorAll('[data-toggle-simkah]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const parts = btn.getAttribute('data-toggle-simkah').split('|');
+      handleToggleStatusSimkah(parts[0], parts[1], parts[2]);
+    });
+  });
+}
+
+// Dipanggil dari openDetailModal() saat modal dibuka, dan lagi dari
+// handleToggleStatusSimkah() setelah status berhasil diubah, supaya
+// badge di modal yang sedang terbuka itu juga langsung ter-refresh.
+function renderDetailStatusSimkah_(r) {
+  const el = document.getElementById('detail-ba-status-simkah');
+  el.innerHTML =
+    '<span style="font-size: var(--fs-sm); color: var(--color-text-muted);">Sudah dipindahkan ke SIMKAH?</span>' +
+    simkahBadgeHtml_(r, true);
+  wireSimkahToggleButtons_(el);
+}
 
 function renderRiwayatPage() {
   const activeKey = _riwayatSortKey || 'nomorUrut';
@@ -1174,6 +1274,7 @@ function renderRiwayatPage() {
         <td>${escapeHtml(r.pihakKeduaNama)}</td>
         <td><span class="badge">${escapeHtml(getKuaLabelForRecord_(r) || '-')}</span></td>
         <td class="mono">${escapeHtml(r.porporasi || '-')}</td>
+        <td>${simkahBadgeHtml_(r, false)}</td>
         <td>${r.linkArsip ? '<span class="badge" style="background:var(--color-primary-tint); color:var(--color-primary-dark);">Ada</span>' : '<span class="badge">Belum</span>'}</td>
         <td>
           <div class="table-actions">
@@ -1259,6 +1360,7 @@ function openDetailModal(nomorUrut, tahun) {
     'Buku NA: ' + escapeHtml(r.banyakNaBuku || '-') + ' &middot; N: ' + escapeHtml(r.banyakN || '-') +
     ' &middot; NB: ' + escapeHtml(r.banyakNb || '-') + '<br>Porporasi: ' + escapeHtml(r.porporasi || '-') +
     (r.noSeri ? ' &middot; No. Seri: ' + escapeHtml(r.noSeri) : '');
+  renderDetailStatusSimkah_(r);
 
   document.getElementById('detail-ba-upload-result').innerHTML = '';
   document.getElementById('detail-ba-arsip-file').value = '';

@@ -656,6 +656,17 @@ td.mono, th.mono { font-family: var(--font-mono); font-variant-numeric: tabular-
   color: var(--color-text-muted);
 }
 
+/* Badge yang juga berfungsi sebagai tombol (mis. status SIMKAH di tabel
+   Riwayat & modal Detail) — klik untuk membalik status, lihat
+   simkahBadgeHtml_() di script.js. */
+.badge--clickable {
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.badge--clickable:hover { opacity: 0.78; }
+.badge--clickable:active { transform: scale(0.95); }
+
 .inline-note {
   display: flex;
   align-items: flex-start;

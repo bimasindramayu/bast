@@ -238,6 +238,16 @@
                 <input type="text" id="ba-no-seri" placeholder="mis. PS, JB" />
               </div>
             </div>
+
+            <div class="field field--full" style="margin-top: var(--sp-2);">
+              <label>Status Stok SIMKAH</label>
+              <div class="segmented" id="ba-status-simkah-segmented">
+                <button type="button" class="segmented__option is-active" data-value="Belum">Belum Dipindahkan</button>
+                <button type="button" class="segmented__option" data-value="Sudah">Sudah Dipindahkan</button>
+              </div>
+              <input type="hidden" id="ba-status-simkah" value="Belum" />
+              <div class="field-hint">Apakah stok buku pada BA ini sudah dimasukkan/diperbarui di SIMKAH? Biasanya baru dilakukan belakangan — defaultnya "Belum", dan bisa ditandai "Sudah" kapan saja nanti dari halaman Riwayat.</div>
+            </div>
           </div>
 
           <div class="card">
@@ -271,6 +281,11 @@
             </div>
             <div style="display:flex; gap: var(--sp-2);">
               <select id="riwayat-filter-kua" style="width:auto;"><option value="">Semua KUA</option></select>
+              <select id="riwayat-filter-simkah" style="width:auto;">
+                <option value="">Semua Status SIMKAH</option>
+                <option value="Belum">Belum Dipindahkan</option>
+                <option value="Sudah">Sudah Dipindahkan</option>
+              </select>
               <select id="riwayat-filter-tahun" style="width:auto;"><option value="">Semua Tahun</option></select>
               <select id="riwayat-filter-bulan" style="width:auto;">
                 <option value="">Semua Bulan</option>
@@ -288,12 +303,13 @@
                   <th data-sort-key="pihakKeduaNama">Pihak Kedua</th>
                   <th style="width:120px;" data-sort-key="kua">KUA</th>
                   <th data-sort-key="porporasi">Porporasi</th>
+                  <th style="width:100px;" data-sort-key="statusSimkah">SIMKAH</th>
                   <th style="width:80px;">Arsip</th>
                   <th style="width:130px;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="riwayat-tbody">
-                <tr><td colspan="8"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
+                <tr><td colspan="9"><div class="loading-row"><span class="spinner"></span> Memuat riwayat...</div></td></tr>
               </tbody>
             </table>
           </div>
@@ -522,6 +538,9 @@
 
       <div class="divider-label">Data Sarana</div>
       <div id="detail-ba-sarana" style="font-size: var(--fs-sm); color: var(--color-text-muted);"></div>
+
+      <div class="divider-label">Status Stok SIMKAH</div>
+      <div id="detail-ba-status-simkah" style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-3); margin-bottom: var(--sp-4);"></div>
 
       <div class="divider-label">Arsip Dokumen Tertandatangan</div>
       <div id="detail-ba-arsip-existing" style="display:none; margin-bottom: var(--sp-3);">

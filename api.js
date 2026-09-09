@@ -110,6 +110,7 @@ const Api = (() => {
     deleteBeritaAcara: (nomorUrut, tahun) => post('deleteBeritaAcara', { nomorUrut, tahun }),
     uploadArsip: (data) => post('uploadArsip', data),
     getArsipFileContent: (fileId) => get('getArsipFileContent', { fileId }),
-    deleteArsip: (nomorUrut, tahun) => post('deleteArsip', { nomorUrut, tahun })
+    deleteArsip: (nomorUrut, tahun) => post('deleteArsip', { nomorUrut, tahun }),
+    updateStatusSimkah: (nomorUrut, tahun, status) => post('updateStatusSimkah', { nomorUrut, tahun, status })
   };
 })();

@@ -134,7 +134,8 @@ const MASTER_COL = {
   NOMOR_PORPORASI_2: 25,  // selalu kosong di data yang diperiksa
   MENGETAHUI_KASI: 26,
   KASI_NIP: 27,
-  LINK_ARSIP: 28  // kolom baru: link Google Drive dokumen tertandatangan (lihat ensureMasterArsipColumn_)
+  LINK_ARSIP: 28,      // link Google Drive dokumen tertandatangan (lihat ensureMasterArsipColumn_)
+  STATUS_SIMKAH: 29    // 'Sudah' / 'Belum' — lihat ensureMasterStatusSimkahColumn_ & updateStatusSimkah()
 };
 
 const PEGAWAI_COL = { NIP: 1, NAMA: 2, KATEGORI: 3, JABATAN: 4, KUA: 5, ALAMAT: 6 };
@@ -240,6 +241,8 @@ function routeRequest_(action, params) {
         return jsonResponse_(true, '', getBeritaAcara());
       case 'deleteBeritaAcara':
         return jsonResponse_(true, 'Berita Acara berhasil dihapus.', deleteBeritaAcara(params));
+      case 'updateStatusSimkah':
+        return jsonResponse_(true, 'Status SIMKAH berhasil diperbarui.', updateStatusSimkah(params));
       case 'uploadArsip':
         return jsonResponse_(true, 'Arsip berhasil diunggah.', uploadArsip(params));
       case 'getArsipFileContent':
@@ -345,6 +348,7 @@ function ensureBootstrapped_() {
     ensureSettingDefaults_(); // sheet SETTING sudah ada dari sebelumnya -> pastikan key BARU tetap ter-seed
   }
   ensureMasterArsipColumn_();
+  ensureMasterStatusSimkahColumn_();
 }
 
 // Menambahkan key SETTING yang mungkin baru ditambahkan pada versi aplikasi
@@ -398,6 +402,24 @@ function ensureMasterArsipColumn_() {
   } else if (current !== 'LINK_ARSIP') {
     throw new Error('Kolom ke-' + MASTER_COL.LINK_ARSIP + ' pada sheet Master sudah berisi header "' +
       current + '", bukan kosong — fitur arsip Drive tidak mengklaimnya secara otomatis. Beri tahu dulu supaya kolomnya disesuaikan.');
+  }
+}
+
+// Sama seperti ensureMasterArsipColumn_() di atas, untuk kolom STATUS_SIMKAH
+// (29) yang menandai apakah stok buku pada satu BA sudah dipindahkan/di-
+// input ke SIMKAH atau belum. Baris-baris LAMA yang dibuat sebelum kolom
+// ini ada otomatis terbaca 'Belum' oleh getBeritaAcara() (sel kosong ->
+// default 'Belum'), TANPA fungsi ini perlu mengisi nilai apa pun ke baris
+// yang sudah ada — cukup memastikan headernya terklaim untuk baris BARU.
+function ensureMasterStatusSimkahColumn_() {
+  const sheet = getSheet_(SHEET_MASTER);
+  const headerCell = sheet.getRange(1, MASTER_COL.STATUS_SIMKAH);
+  const current = normalizeHeader_(headerCell.getValue());
+  if (!current) {
+    headerCell.setValue('STATUS_SIMKAH');
+  } else if (current !== 'STATUS_SIMKAH') {
+    throw new Error('Kolom ke-' + MASTER_COL.STATUS_SIMKAH + ' pada sheet Master sudah berisi header "' +
+      current + '", bukan kosong — fitur status SIMKAH tidak mengklaimnya secara otomatis. Beri tahu dulu supaya kolomnya disesuaikan.');
   }
 }
 
@@ -892,6 +914,12 @@ function saveBeritaAcara(payload) {
   const noSeri = String(payload.noSeri || '').trim();
   const kasiNama = String(payload.kasiNama || '').trim();
   const kasiNip = String(payload.kasiNip || '').trim();
+  // Status pemindahan stok buku ke SIMKAH — defaultnya SELALU 'Belum' saat BA
+  // baru dibuat (pemindahan ke SIMKAH lazimnya baru dilakukan belakangan,
+  // terpisah dari waktu BA fisiknya dibuat), apa pun yang dikirim payload
+  // selain persis 'Sudah' dianggap 'Belum'. Bisa diubah nanti dari Riwayat
+  // lewat updateStatusSimkah().
+  const statusSimkah = (String(payload.statusSimkah || '').trim() === 'Sudah') ? 'Sudah' : 'Belum';
 
   if (isNaN(nomorUrut) || !tahun) throw new Error('Nomor Urut dan Tahun wajib diisi.');
   if (!pihakSatuNip) throw new Error('Pihak Pertama wajib dipilih.');
@@ -918,7 +946,7 @@ function saveBeritaAcara(payload) {
       throw new Error('Nomor porporasi sudah digunakan pada BA Nomor ' + overlapCheck.nomorSurat + ' (rentang ' + overlapCheck.rentang + ').');
     }
 
-    const width = MASTER_COL.KASI_NIP;
+    const width = MASTER_COL.STATUS_SIMKAH;
     const rowArray = new Array(width).fill('');
     rowArray[MASTER_COL.NMR_SRT - 1] = nomorUrut;
     rowArray[MASTER_COL.NO_SURAT - 1] = pad3_(nomorUrut);
@@ -945,6 +973,9 @@ function saveBeritaAcara(payload) {
     // NOMOR PORPORASI 2 dibiarkan kosong — konsisten dengan seluruh data lama.
     rowArray[MASTER_COL.MENGETAHUI_KASI - 1] = kasiNama;
     rowArray[MASTER_COL.KASI_NIP - 1] = kasiNip;
+    // Kolom LINK_ARSIP (28) dibiarkan kosong ('' dari .fill di atas) — diisi
+    // belakangan lewat uploadArsip() saat dokumen tertandatangan diunggah.
+    rowArray[MASTER_COL.STATUS_SIMKAH - 1] = statusSimkah;
 
     masterSheet.getRange(masterSheet.getLastRow() + 1, 1, 1, width).setValues([rowArray]);
 
@@ -959,7 +990,7 @@ function saveBeritaAcara(payload) {
       writeSettingValue_(settingSheet, 'LAST_NUMBER_YEAR', tahun);
     }
 
-    return { nomorUrut: nomorUrut, noSurat: pad3_(nomorUrut), tahun: tahun };
+    return { nomorUrut: nomorUrut, noSurat: pad3_(nomorUrut), tahun: tahun, statusSimkah: statusSimkah };
   } finally {
     lock.releaseLock();
   }
@@ -1006,7 +1037,10 @@ function getBeritaAcara() {
       porporasi: row[MASTER_COL.NOMOR_PORPORASI_1 - 1],
       kasiNama: row[MASTER_COL.MENGETAHUI_KASI - 1],
       kasiNip: row[MASTER_COL.KASI_NIP - 1],
-      linkArsip: row[MASTER_COL.LINK_ARSIP - 1] || ''
+      linkArsip: row[MASTER_COL.LINK_ARSIP - 1] || '',
+      // Baris lama (dari sebelum kolom ini ada) selnya kosong -> default
+      // 'Belum', konsisten dengan default saat BA baru dibuat di saveBeritaAcara().
+      statusSimkah: (String(row[MASTER_COL.STATUS_SIMKAH - 1] || '').trim() === 'Sudah') ? 'Sudah' : 'Belum'
     });
   }
   return result;
@@ -1465,4 +1499,31 @@ function deleteArsip(payload) {
   }
 
   return { deleted: true };
+}
+
+/**
+ * Menandai status pemindahan stok buku ke SIMKAH untuk satu Berita Acara
+ * yang SUDAH tersimpan. Dipanggil dari toggle di halaman Riwayat (bukan
+ * hanya saat Buat BA) karena pemindahan ke SIMKAH lazimnya memang baru
+ * dilakukan belakangan oleh operator, terpisah dari waktu BA fisiknya
+ * dibuat — sehingga status ini perlu bisa diubah kapan saja setelahnya,
+ * bukan hanya ditentukan sekali di awal.
+ */
+function updateStatusSimkah(payload) {
+  const nomorUrut = payload.nomorUrut;
+  const tahun = payload.tahun;
+  const status = (String(payload.status || '').trim() === 'Sudah') ? 'Sudah' : 'Belum';
+  const rowNum = findMasterRow_(nomorUrut, tahun);
+  if (rowNum === -1) throw new Error('Berita Acara Nomor ' + nomorUrut + '/' + tahun + ' tidak ditemukan. Muat ulang halaman Riwayat.');
+
+  const sheet = getSheet_(SHEET_MASTER);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    sheet.getRange(rowNum, MASTER_COL.STATUS_SIMKAH).setValue(status);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return { nomorUrut: nomorUrut, tahun: tahun, statusSimkah: status };
 }
